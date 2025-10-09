@@ -1,0 +1,164 @@
+services:
+  redis:
+    image: redis:7
+    container_name: opera-qc-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - app-network
+  swagger-ui:
+    image: swaggerapi/swagger-ui
+    container_name: swagger-ui
+    ports:
+      - "8084:8080"
+    environment:
+      SWAGGER_JSON: /openapi/swagger.json
+    volumes:
+      - ./openapi/swagger.json:/openapi/swagger.json:ro
+    networks:
+      - app-network
+    env_file:
+      - container.env
+
+  minio:
+    image: minio/minio
+    container_name: minio
+    restart: always
+    environment:
+      MINIO_ACCESS_KEY: minioaccesskey
+      MINIO_SECRET_KEY: miniosecretkey
+    ports:
+      - "9005:9000" # host 9005 → container 9000 (data API)
+      - "9006:9006" # host 9006 → container 9006 (Web UI)
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9006"
+    networks:
+      - app-network
+    env_file:
+      - container.env
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    container_name: elasticsearch
+    restart: always
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+      - "ES_JAVA_OPTS=-Xms2g -Xmx2g"
+      - bootstrap.memory_lock=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - app-network
+    env_file:
+      - container.env
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.12.0
+    container_name: kibana
+    restart: always
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - xpack.security.enabled=false
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - app-network
+    env_file:
+      - container.env
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: app
+    restart: always
+    ports:
+      - "8081:8081"
+      - "5555:5555"
+    environment:
+      - NODE_ENV=development
+      - HOST=0.0.0.0
+      - PORT=8081
+      - SWAGGER_URL=${SWAGGER_URL:-http://31.184.134.153:8081/api/docs}
+      - COMMON_RATE_LIMIT_MAX_REQUESTS=${COMMON_RATE_LIMIT_MAX_REQUESTS:-1000}
+      - COMMON_RATE_LIMIT_WINDOW_MS=${COMMON_RATE_LIMIT_WINDOW_MS:-1000}
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - ELASTICSEARCH_INDEX_PREFIX=${ELASTICSEARCH_INDEX_PREFIX:-opera-qc}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - BULL_QUEUE=${BULL_QUEUE:-analyseCalls}
+      - FILE_SERVER_BASE_URL=http://94.182.56.132/tmp/two-channel/stream-audio-incoming.php?recfile=
+      - AUDIO_DIR=/app/conversations
+      - MINIO_ENDPOINT=minio
+      - MINIO_ENDPOINT_UTL=http://minio:9000
+      - MINIO_PORT=9000
+      - MINIO_ACCESS_KEY=minioaccesskey
+      - MINIO_SECRET_KEY=miniosecretkey
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-your-refresh-secret-key}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-1d}
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000,http://localhost:5173,http://31.184.134.173:8082,http://host.docker.internal:8082, http://host.docker.internal:8081, http://31.184.134.173:8081}
+    volumes:
+      - ./conversations:/app/conversations:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      redis:
+        condition: service_started
+    command: sh -c "npm start"
+    networks:
+      - app-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - container.env
+
+  # operaai:
+  #   image: operaasr2:v1.1T
+  #   container_name: operaai
+  #   restart: always
+  #   runtime: nvidia
+  #   environment:
+  #     - NVIDIA_VISIBLE_DEVICES=all
+  #   ports:
+  #     - "8000:8000"
+  #   command: uvicorn main:app --host 0.0.0.0 --port 8000
+  #   networks:
+  #     - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  elasticsearch_data:
+    driver: local
+  minio_data:
+    driver: local
+  redis_data:
+    driver: local

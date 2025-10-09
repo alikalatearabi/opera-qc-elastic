@@ -1,0 +1,53 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         Int     @id @default(autoincrement())
+  email      String  @unique
+  name       String?
+  password   String
+  isVerified Boolean @default(false)
+}
+
+model SessionEvent {
+  id                Int      @id @default(autoincrement())
+  level             Int      // Changed from String to Int
+  type              String
+  sourceChannel     String   @map("source_channel")
+  sourceNumber      String   @map("source_number")
+  queue             String
+  destChannel       String   @map("dest_channel")
+  destNumber        String   @map("dest_number")
+  date              DateTime
+  duration          String
+  filename          String
+
+  // File URLs for audio files stored in MinIO
+  incommingfileUrl  String?
+  outgoingfileUrl   String?
+
+  // Transcription and analysis details
+  transcription     Json?    // full transcription response
+  explanation       String?  // first element from explanation array
+  category          String?  // first element from category array
+  topic             Json?    // topic object (full object stored)
+  emotion           String?  // first element from emotion array
+  keyWords          String[] // Changed from Json? to String[]
+  routinCheckStart  String?
+  routinCheckEnd    String?
+  forbiddenWords    Json?    // can be an object or array
+
+  // Optional metadata/logging fields
+  time              String   // Required based on migration
+  pid               Int      // Required based on migration
+  hostname          String   // Required based on migration
+  name              String   // Required based on migration
+  msg               String   // Required based on migration
+}
+
