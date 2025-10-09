@@ -22,7 +22,9 @@
     "migrate-to-elasticsearch": "tsx scripts/migrate-to-elasticsearch.ts",
     "migrate-clear": "tsx scripts/migrate-to-elasticsearch.ts --clear",
     "migrate-verify": "tsx scripts/migrate-to-elasticsearch.ts --verify",
-    "migrate-sample": "tsx scripts/migrate-to-elasticsearch.ts --sample"
+    "migrate-sample": "tsx scripts/migrate-to-elasticsearch.ts --sample",
+    "cleanup-audio": "node cleanup-old-audio-files.js",
+    "cleanup-audio-dry": "node cleanup-old-audio-files.js --dry-run"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7.0.0",
@@ -33,7 +35,7 @@
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.47.1",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.6.1",
     "envalid": "^8.0.0",
     "express": "^4.19.2",
     "express-basic-auth": "^1.2.1",
