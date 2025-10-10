@@ -56,7 +56,13 @@ export const CreateSessionEventSchema = z.object({
     msg: z.string(),
 });
 
-// Updated to match the new process API response format
+// Schema for ASR API response (direct transcription data)
+export const ASRResponseSchema = z.object({
+    Agent: z.string(),
+    Customer: z.string()
+});
+
+// Updated to match the new process API response format (with analysis)
 export const TranscriptionResponseSchema = z.object({
     transcription: z.object({
         Agent: z.string(),

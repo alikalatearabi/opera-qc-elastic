@@ -63,7 +63,7 @@ export const transcriptionWorker = new Worker(
             const transcriptionResult = await sendFilesToTranscriptionAPI(customerFilePath, agentFilePath);
             console.log("ASR Result:", transcriptionResult);
 
-            if (!transcriptionResult || typeof transcriptionResult.transcription !== "string" || !transcriptionResult.transcription) {
+            if (!transcriptionResult || !transcriptionResult.Agent || !transcriptionResult.Customer) {
                 console.error(`ASR API did not return a valid transcription for session ${sessionEventId}:`, transcriptionResult);
                 // return {
                 //     success: false,
@@ -81,11 +81,12 @@ export const transcriptionWorker = new Worker(
             //     };
             // }
 
-            // Validate transcription result (optional, can be improved)
-            const parsedProcess = TranscriptionResponseSchema.safeParse(transcriptionResult);
-            if (!parsedProcess.success) {
-                console.log(parsedProcess)
-                console.error(`Invalid ASR Data for session ${sessionEventId}:`, parsedProcess.error.format());
+            // Validate ASR result using the correct schema
+            const { ASRResponseSchema } = await import('@/api/session/sessionModel');
+            const parsedASR = ASRResponseSchema.safeParse(transcriptionResult);
+            if (!parsedASR.success) {
+                console.log(parsedASR)
+                console.error(`Invalid ASR Data for session ${sessionEventId}:`, parsedASR.error.format());
                 // return {
                 //     success: false,
                 //     error: "Invalid ASR data",
@@ -97,7 +98,10 @@ export const transcriptionWorker = new Worker(
             console.log("Adding to LLM Queue")
             await llmQueue.add('analyze-transcription', {
                 sessionEventId,
-                transcriptionResult,
+                transcriptionResult: {
+                    transcription: transcriptionResult, // Wrap ASR response in transcription object
+                    analysis: undefined // No analysis yet
+                },
                 filename,
                 customerFilePath,
                 agentFilePath
