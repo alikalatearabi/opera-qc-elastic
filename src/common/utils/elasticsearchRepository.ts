@@ -28,7 +28,7 @@ export interface SessionEventDocument {
     };
     explanation?: string;
     category?: string;
-    topic?: Record<string, any>;
+    topic?: string[];
     emotion?: string;
     keyWords?: string[];
     routinCheckStart?: string;

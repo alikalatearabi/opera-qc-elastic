@@ -155,8 +155,7 @@ export const createSessionEventIndex = async () => {
                         }
                     },
                     topic: {
-                        type: "object",
-                        dynamic: true // Allow dynamic fields for topic keys/values
+                        type: "keyword" // Array of topic keywords
                     },
                     emotion: {
                         type: "keyword",
