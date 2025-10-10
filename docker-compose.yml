@@ -79,6 +79,14 @@ services:
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - xpack.security.enabled=false
+      - xpack.encryptedSavedObjects.encryptionKey=a7a6311933d3503b89bc2dbc36572c33a6c10925682e591bffcab954b8f1c5b7
+      - xpack.reporting.encryptionKey=a7a6311933d3503b89bc2dbc36572c33a6c10925682e591bffcab954b8f1c5b7
+      - xpack.security.session.idleTimeout=1h
+      - xpack.security.session.lifespan=30d
+      - xpack.ml.enabled=false
+      - xpack.graph.enabled=false
+      - xpack.watcher.enabled=false
+      - xpack.monitoring.enabled=false
     ports:
       - "5601:5601"
     depends_on:
