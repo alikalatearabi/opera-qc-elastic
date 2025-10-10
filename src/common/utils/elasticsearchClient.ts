@@ -98,7 +98,7 @@ export const createSessionEventIndex = async () => {
                     // Basic call information
                     id: { type: "keyword" },
                     level: { type: "integer" },
-                    time: { type: "long" },
+                    time: { type: "date" },
                     pid: { type: "integer" },
                     hostname: { type: "keyword" },
                     name: { type: "keyword" },
