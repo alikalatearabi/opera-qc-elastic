@@ -60,9 +60,15 @@ export interface SearchFilters {
     searchText?: string;
 }
 
+export interface SortOption {
+    field: string;
+    order: 'asc' | 'desc';
+}
+
 export interface PaginationOptions {
     page: number;
     limit: number;
+    sort?: SortOption[];
 }
 
 export interface SearchResult<T> {
@@ -172,13 +178,21 @@ export class SessionEventRepository {
             // Build query
             const query = this.buildSearchQuery(filters);
 
+            // Build sort options
+            let sortOptions = [{ date: { order: 'desc' } }]; // Default sort
+            
+            // If custom sort is provided, use it instead
+            if (pagination.sort && pagination.sort.length > 0) {
+                sortOptions = pagination.sort.map(sortOpt => {
+                    return { [sortOpt.field]: { order: sortOpt.order } };
+                });
+            }
+            
             const response = await elasticsearchClient.search({
                 index: this.indexName,
                 body: {
                     query,
-                    sort: [
-                        { date: { order: 'desc' } }
-                    ],
+                    sort: sortOptions,
                     from,
                     size: limit
                 }

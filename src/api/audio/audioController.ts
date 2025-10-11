@@ -14,6 +14,8 @@ class AudioController {
             // Extract parameters from query
             const lastId = req.query.lastId as string | undefined;
             const batchSize = req.query.batchSize ? parseInt(req.query.batchSize as string, 10) : 1000;
+            const sortField = (req.query.sortField as string) || 'date';
+            const sortOrder = (req.query.sortOrder as 'asc' | 'desc') || 'desc';
 
             // Validate batch size (prevent extreme values)
             const validBatchSize = Math.max(100, Math.min(batchSize, 5000));
@@ -31,7 +33,7 @@ class AudioController {
             let isFirstItem = true;
 
             // Stream the session events in batches
-            for await (const batch of AudioRepository.streamSessionEvents(lastId, validBatchSize)) {
+            for await (const batch of AudioRepository.streamSessionEvents(lastId, validBatchSize, sortField, sortOrder)) {
                 if (!isFirstBatch) {
                     // If not the first batch, we need to separate batches with commas
                     res.write(',');

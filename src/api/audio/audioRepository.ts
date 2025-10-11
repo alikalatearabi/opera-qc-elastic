@@ -3,9 +3,18 @@ import { sessionEventRepository, type SessionEventDocument } from "@/common/util
 export class AudioRepository {
     /**
      * Gets all session events from Elasticsearch with only essential fields
+     * @param sortField Field to sort by (default: 'date')
+     * @param sortOrder Sort order ('asc' or 'desc', default: 'desc')
      */
-    public static async getAllSessionEvents() {
-        const result = await sessionEventRepository.search({}, { page: 1, limit: 10000 });
+    public static async getAllSessionEvents(
+        sortField = 'date',
+        sortOrder: 'asc' | 'desc' = 'desc'
+    ) {
+        const result = await sessionEventRepository.search({}, { 
+            page: 1, 
+            limit: 10000,
+            sort: [{ field: sortField, order: sortOrder }] 
+        });
         return result.data.map(event => ({
             id: event.id,
             destNumber: event.destNumber,
@@ -21,11 +30,21 @@ export class AudioRepository {
     /**
      * Gets session events with ID greater than the provided lastId with only essential fields
      * @param lastId The ID to start from (exclusive)
+     * @param sortField Field to sort by (default: 'date')
+     * @param sortOrder Sort order ('asc' or 'desc', default: 'desc')
      */
-    public static async getSessionEventsAfterLastId(lastId: string) {
+    public static async getSessionEventsAfterLastId(
+        lastId: string,
+        sortField = 'date',
+        sortOrder: 'asc' | 'desc' = 'desc'
+    ) {
         // For Elasticsearch, we'll use createdAt timestamp for reliable ordering
         const lastEvent = await sessionEventRepository.findById(lastId);
-        const result = await sessionEventRepository.search({}, { page: 1, limit: 10000 });
+        const result = await sessionEventRepository.search({}, { 
+            page: 1, 
+            limit: 10000,
+            sort: [{ field: sortField, order: sortOrder }] 
+        });
         
         let filteredData;
         if (lastEvent && lastEvent.createdAt) {
@@ -57,15 +76,23 @@ export class AudioRepository {
      * Streams session events in batches to avoid memory issues
      * @param lastId Optional ID to start from (exclusive)
      * @param batchSize Number of records to fetch per batch
+     * @param sortField Field to sort by (default: 'date')
+     * @param sortOrder Sort order ('asc' or 'desc', default: 'desc')
      */
-    public static async *streamSessionEvents(lastId: string | undefined = undefined, batchSize = 1000) {
+    public static async *streamSessionEvents(
+        lastId: string | undefined = undefined, 
+        batchSize = 1000,
+        sortField = 'date',
+        sortOrder: 'asc' | 'desc' = 'desc'
+    ) {
         let currentPage = 1;
         let hasMoreRecords = true;
 
         while (hasMoreRecords) {
             const result = await sessionEventRepository.search({}, {
                 page: currentPage,
-                limit: batchSize
+                limit: batchSize,
+                sort: [{ field: sortField, order: sortOrder }]
             });
 
             if (result.data.length === 0) {
