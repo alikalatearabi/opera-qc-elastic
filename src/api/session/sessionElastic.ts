@@ -130,16 +130,16 @@ export class SessionEventController {
                 return handleServiceResponse(ServiceResponse.failure("Session event not found", {}, StatusCodes.NOT_FOUND), res);
             }
 
-            // Format the response similar to the Prisma version
+            // Format the response with only the requested fields
             const formattedEvent = {
-                ...sessionEvent,
-                incommingfileUrl: sessionEvent.incommingfileUrl || null,
-                outgoingfileUrl: sessionEvent.outgoingfileUrl || null,
-                forbiddenWords: sessionEvent.forbiddenWords || {},
-                topic: (sessionEvent.topic && typeof sessionEvent.topic === 'object' && Object.keys(sessionEvent.topic).length > 0)
-                    ? Object.keys(sessionEvent.topic)[0] : "",
-                subTopic: (sessionEvent.topic && typeof sessionEvent.topic === 'object' && Object.values(sessionEvent.topic).length > 0)
-                    ? Object.values(sessionEvent.topic)[0] : ""
+                id: sessionEvent.id,
+                destNumber: sessionEvent.destNumber,
+                searchText: sessionEvent.searchText || "",
+                transcription: sessionEvent.transcription,
+                explanation: sessionEvent.explanation,
+                topic: sessionEvent.topic,
+                sourceNumber: sessionEvent.sourceNumber,
+                date: sessionEvent.date
             };
 
             const serviceResponse = ServiceResponse.success("Session event retrieved successfully", formattedEvent);
@@ -173,18 +173,16 @@ export class SessionEventController {
             // Search using Elasticsearch
             const result = await sessionEventRepository.search(filters, { page, limit });
 
-            // Format sessions similar to Prisma version
+            // Format sessions with only the requested fields
             const formattedSessions = result.data.map(event => ({
-                ...event,
-                incommingfileUrl: event.incommingfileUrl || null,
-                outgoingfileUrl: event.outgoingfileUrl || null,
-                forbiddenWords: event.forbiddenWords || {},
-                topic: event.topic && typeof event.topic === 'object' && Object.keys(event.topic).length > 0
-                    ? Object.keys(event.topic)[0]
-                    : "",
-                subTopic: event.topic && typeof event.topic === 'object' && Object.values(event.topic).length > 0
-                    ? Object.values(event.topic)[0]
-                    : ""
+                id: event.id,
+                destNumber: event.destNumber,
+                searchText: event.searchText || "",
+                transcription: event.transcription,
+                explanation: event.explanation,
+                topic: event.topic,
+                sourceNumber: event.sourceNumber,
+                date: event.date
             }));
 
             console.log("Fetched Sessions:", formattedSessions.length);
