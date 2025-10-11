@@ -2,22 +2,42 @@ import { sessionEventRepository, type SessionEventDocument } from "@/common/util
 
 export class AudioRepository {
     /**
-     * Gets all session events from Elasticsearch
+     * Gets all session events from Elasticsearch with only essential fields
      */
     public static async getAllSessionEvents() {
         const result = await sessionEventRepository.search({}, { page: 1, limit: 10000 });
-        return result.data;
+        return result.data.map(event => ({
+            id: event.id,
+            destNumber: event.destNumber,
+            searchText: event.searchText || "",
+            transcription: event.transcription,
+            explanation: event.explanation,
+            topic: event.topic,
+            sourceNumber: event.sourceNumber,
+            date: event.date
+        }));
     }
 
     /**
-     * Gets session events with ID greater than the provided lastId
+     * Gets session events with ID greater than the provided lastId with only essential fields
      * @param lastId The ID to start from (exclusive)
      */
     public static async getSessionEventsAfterLastId(lastId: string) {
         // For Elasticsearch, we'll use a different approach since IDs are strings
         // We'll use the _source.createdAt field for ordering
         const result = await sessionEventRepository.search({}, { page: 1, limit: 10000 });
-        return result.data.filter(event => event.id && event.id > lastId);
+        return result.data
+            .filter(event => event.id && event.id > lastId)
+            .map(event => ({
+                id: event.id,
+                destNumber: event.destNumber,
+                searchText: event.searchText || "",
+                transcription: event.transcription,
+                explanation: event.explanation,
+                topic: event.topic,
+                sourceNumber: event.sourceNumber,
+                date: event.date
+            }));
     }
 
     /**
@@ -44,8 +64,20 @@ export class AudioRepository {
                     batch = batch.filter(event => event.id && event.id > lastId);
                 }
 
-                if (batch.length > 0) {
-                    yield batch;
+                // Filter fields to return only essential data
+                const filteredBatch = batch.map(event => ({
+                    id: event.id,
+                    destNumber: event.destNumber,
+                    searchText: event.searchText || "",
+                    transcription: event.transcription,
+                    explanation: event.explanation,
+                    topic: event.topic,
+                    sourceNumber: event.sourceNumber,
+                    date: event.date
+                }));
+
+                if (filteredBatch.length > 0) {
+                    yield filteredBatch;
                 }
 
                 // Check if we've reached the end

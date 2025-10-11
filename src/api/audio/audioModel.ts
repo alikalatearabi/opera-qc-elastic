@@ -3,35 +3,16 @@ import { z } from "zod";
 
 extendZodWithOpenApi(z);
 
-// Schema for session event data
+// Schema for session event data with only essential fields
 export const SessionEventSchema = z.object({
-    id: z.number(),
-    level: z.number(),
-    type: z.string(),
-    sourceChannel: z.string(),
-    sourceNumber: z.string(),
-    queue: z.string(),
-    destChannel: z.string(),
+    id: z.string(),
     destNumber: z.string(),
-    date: z.string().datetime(),
-    duration: z.string(),
-    filename: z.string(),
-    incommingfileUrl: z.string().nullable().optional(),
-    outgoingfileUrl: z.string().nullable().optional(),
+    searchText: z.string(),
     transcription: z.any().nullable().optional(),
     explanation: z.string().nullable().optional(),
-    category: z.string().nullable().optional(),
     topic: z.any().nullable().optional(),
-    emotion: z.string().nullable().optional(),
-    keyWords: z.array(z.string()).nullable().optional(),
-    routinCheckStart: z.string().nullable().optional(),
-    routinCheckEnd: z.string().nullable().optional(),
-    forbiddenWords: z.any().nullable().optional(),
-    time: z.string(),
-    pid: z.number(),
-    hostname: z.string(),
-    name: z.string(),
-    msg: z.string(),
+    sourceNumber: z.string(),
+    date: z.string().datetime(),
 });
 
 // Query parameter schema for lastId parameter
