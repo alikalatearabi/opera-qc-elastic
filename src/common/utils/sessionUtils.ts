@@ -114,31 +114,37 @@ export const sendToAnalysisAPI = async (transcriptionData: any) => {
             return null;
         }
 
-        // Extract the actual transcription text from the wrapped object
-        let transcriptionText = "";
+        // Extract the actual transcription data from the wrapped object
+        let transcriptionPayload = {};
         
         if (transcriptionData.transcription) {
-            // If it's wrapped in a transcription object, extract the Agent and Customer text
+            // If it's wrapped in a transcription object, extract the Agent and Customer
             const { Agent, Customer } = transcriptionData.transcription;
-            transcriptionText = `Agent: ${Agent || ""}\nCustomer: ${Customer || ""}`;
+            transcriptionPayload = {
+                Agent: Agent || "",
+                Customer: Customer || ""
+            };
         } else if (transcriptionData.Agent && transcriptionData.Customer) {
             // If it's direct ASR output
-            transcriptionText = `Agent: ${transcriptionData.Agent}\nCustomer: ${transcriptionData.Customer}`;
+            transcriptionPayload = {
+                Agent: transcriptionData.Agent,
+                Customer: transcriptionData.Customer
+            };
         } else {
             console.error("Invalid transcription data format:", transcriptionData);
             return null;
         }
 
-        console.log("Sending transcription text to LLM API:", transcriptionText.substring(0, 200) + "...");
+        console.log("Sending transcription data to LLM API:", JSON.stringify(transcriptionPayload).substring(0, 200) + "...");
 
-        // Call the public analysis endpoint with the transcription text as a string
+        // Call the public analysis endpoint with the transcription data as JSON object
         const response = await axios.post(
             "http://31.184.134.153:8003/analyze/",
-            transcriptionText,
+            transcriptionPayload,
             {
                 headers: {
                     "accept": "application/json",
-                    "Content-Type": "text/plain"
+                    "Content-Type": "application/json"
                 }
             }
         );
