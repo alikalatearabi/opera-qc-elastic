@@ -23,21 +23,34 @@ export class AudioRepository {
      * @param lastId The ID to start from (exclusive)
      */
     public static async getSessionEventsAfterLastId(lastId: string) {
-        // For Elasticsearch, we'll use a different approach since IDs are strings
-        // We'll use the _source.createdAt field for ordering
+        // For Elasticsearch, we'll use createdAt timestamp for reliable ordering
+        const lastEvent = await sessionEventRepository.findById(lastId);
         const result = await sessionEventRepository.search({}, { page: 1, limit: 10000 });
-        return result.data
-            .filter(event => event.id && event.id > lastId)
-            .map(event => ({
-                id: event.id,
-                destNumber: event.destNumber,
-                searchText: event.searchText || "",
-                transcription: event.transcription,
-                explanation: event.explanation,
-                topic: event.topic,
-                sourceNumber: event.sourceNumber,
-                date: event.date
-            }));
+        
+        let filteredData;
+        if (lastEvent && lastEvent.createdAt) {
+            // Filter events created after the lastId event
+            filteredData = result.data.filter(event => 
+                event.id && 
+                event.id !== lastId && 
+                event.createdAt && 
+                new Date(event.createdAt) > new Date(lastEvent.createdAt)
+            );
+        } else {
+            // Fallback to string comparison if event not found
+            filteredData = result.data.filter(event => event.id && event.id > lastId);
+        }
+        
+        return filteredData.map(event => ({
+            id: event.id,
+            destNumber: event.destNumber,
+            searchText: event.searchText || "",
+            transcription: event.transcription,
+            explanation: event.explanation,
+            topic: event.topic,
+            sourceNumber: event.sourceNumber,
+            date: event.date
+        }));
     }
 
     /**
@@ -61,7 +74,20 @@ export class AudioRepository {
                 // Filter by lastId if provided
                 let batch = result.data;
                 if (lastId !== undefined) {
-                    batch = batch.filter(event => event.id && event.id > lastId);
+                    // Use createdAt timestamp for reliable ordering
+                    const lastEvent = await sessionEventRepository.findById(lastId);
+                    if (lastEvent && lastEvent.createdAt) {
+                        // Filter events created after the lastId event
+                        batch = batch.filter(event => 
+                            event.id && 
+                            event.id !== lastId && 
+                            event.createdAt && 
+                            new Date(event.createdAt) > new Date(lastEvent.createdAt)
+                        );
+                    } else {
+                        // Fallback to string comparison if event not found
+                        batch = batch.filter(event => event.id && event.id > lastId);
+                    }
                 }
 
                 // Filter fields to return only essential data
