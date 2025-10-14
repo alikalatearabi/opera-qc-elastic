@@ -202,7 +202,24 @@ export class SessionEventRepository {
                     }
                 });
                 
-                return this.processScrollResponse(response, 1, limit);
+                // Process the scroll response
+                const data = response.hits.hits.map(hit => ({
+                    id: hit._id,
+                    ...hit._source as SessionEventDocument
+                }));
+                
+                const total = typeof response.hits.total === 'number'
+                    ? response.hits.total
+                    : response.hits.total?.value || 0;
+                    
+                return {
+                    data,
+                    total,
+                    page: 1,
+                    limit,
+                    scrollId: response._scroll_id,
+                    totalPages: Math.ceil(total / limit)
+                };
             }
             
             // Use regular search for normal pagination
