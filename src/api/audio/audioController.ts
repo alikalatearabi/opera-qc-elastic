@@ -61,7 +61,7 @@ class AudioController {
 
         } catch (error) {
             console.error("Error retrieving session events:", error);
-            
+
             // Check if headers have already been sent
             if (!res.headersSent) {
                 // If headers not sent yet, send a proper error response

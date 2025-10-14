@@ -10,10 +10,10 @@ export class AudioRepository {
         sortField = 'date',
         sortOrder: 'asc' | 'desc' = 'desc'
     ) {
-        const result = await sessionEventRepository.search({}, { 
-            page: 1, 
+        const result = await sessionEventRepository.search({}, {
+            page: 1,
             limit: 5000, // Reduced limit to avoid hitting Elasticsearch window limit
-            sort: [{ field: sortField, order: sortOrder }] 
+            sort: [{ field: sortField, order: sortOrder }]
         });
         return result.data.map(event => ({
             id: event.id,
@@ -40,26 +40,26 @@ export class AudioRepository {
     ) {
         // For Elasticsearch, we'll use createdAt timestamp for reliable ordering
         const lastEvent = await sessionEventRepository.findById(lastId);
-        const result = await sessionEventRepository.search({}, { 
-            page: 1, 
+        const result = await sessionEventRepository.search({}, {
+            page: 1,
             limit: 5000, // Reduced limit to avoid hitting Elasticsearch window limit
-            sort: [{ field: sortField, order: sortOrder }] 
+            sort: [{ field: sortField, order: sortOrder }]
         });
-        
+
         let filteredData;
         if (lastEvent && lastEvent.createdAt) {
             // Filter events created after the lastId event
-            filteredData = result.data.filter(event => 
-                event.id && 
-                event.id !== lastId && 
-                event.createdAt && 
+            filteredData = result.data.filter(event =>
+                event.id &&
+                event.id !== lastId &&
+                event.createdAt &&
                 new Date(event.createdAt) > new Date(lastEvent.createdAt)
             );
         } else {
             // Fallback to string comparison if event not found
             filteredData = result.data.filter(event => event.id && event.id > lastId);
         }
-        
+
         return filteredData.map(event => ({
             id: event.id,
             destNumber: event.destNumber,
@@ -80,7 +80,7 @@ export class AudioRepository {
      * @param sortOrder Sort order ('asc' or 'desc', default: 'desc')
      */
     public static async *streamSessionEvents(
-        lastId: string | undefined = undefined, 
+        lastId: string | undefined = undefined,
         batchSize = 1000,
         sortField = 'date',
         sortOrder: 'asc' | 'desc' = 'desc'
@@ -98,51 +98,51 @@ export class AudioRepository {
                     sort: [{ field: sortField, order: sortOrder }]
                 });
 
-            if (result.data.length === 0) {
-                hasMoreRecords = false;
-            } else {
-                // Filter by lastId if provided
-                let batch = result.data;
-                if (lastId !== undefined) {
-                    // Use createdAt timestamp for reliable ordering
-                    const lastEvent = await sessionEventRepository.findById(lastId);
-                    if (lastEvent && lastEvent.createdAt) {
-                        // Filter events created after the lastId event
-                        batch = batch.filter(event => 
-                            event.id && 
-                            event.id !== lastId && 
-                            event.createdAt && 
-                            new Date(event.createdAt) > new Date(lastEvent.createdAt)
-                        );
-                    } else {
-                        // Fallback to string comparison if event not found
-                        batch = batch.filter(event => event.id && event.id > lastId);
-                    }
-                }
-
-                // Filter fields to return only essential data
-                const filteredBatch = batch.map(event => ({
-                    id: event.id,
-                    destNumber: event.destNumber,
-                    searchText: event.searchText || "",
-                    transcription: event.transcription,
-                    explanation: event.explanation,
-                    topic: event.topic,
-                    sourceNumber: event.sourceNumber,
-                    date: event.date
-                }));
-
-                if (filteredBatch.length > 0) {
-                    yield filteredBatch;
-                }
-
-                // Check if we've reached the end
-                if (result.data.length < safeBatchSize) {
+                if (result.data.length === 0) {
                     hasMoreRecords = false;
                 } else {
-                    currentPage++;
+                    // Filter by lastId if provided
+                    let batch = result.data;
+                    if (lastId !== undefined) {
+                        // Use createdAt timestamp for reliable ordering
+                        const lastEvent = await sessionEventRepository.findById(lastId);
+                        if (lastEvent && lastEvent.createdAt) {
+                            // Filter events created after the lastId event
+                            batch = batch.filter(event =>
+                                event.id &&
+                                event.id !== lastId &&
+                                event.createdAt &&
+                                new Date(event.createdAt) > new Date(lastEvent.createdAt)
+                            );
+                        } else {
+                            // Fallback to string comparison if event not found
+                            batch = batch.filter(event => event.id && event.id > lastId);
+                        }
+                    }
+
+                    // Filter fields to return only essential data
+                    const filteredBatch = batch.map(event => ({
+                        id: event.id,
+                        destNumber: event.destNumber,
+                        searchText: event.searchText || "",
+                        transcription: event.transcription,
+                        explanation: event.explanation,
+                        topic: event.topic,
+                        sourceNumber: event.sourceNumber,
+                        date: event.date
+                    }));
+
+                    if (filteredBatch.length > 0) {
+                        yield filteredBatch;
+                    }
+
+                    // Check if we've reached the end
+                    if (result.data.length < safeBatchSize) {
+                        hasMoreRecords = false;
+                    } else {
+                        currentPage++;
+                    }
                 }
-            }
             } catch (error) {
                 console.error("Error in streamSessionEvents:", error);
                 // Stop the loop on error
