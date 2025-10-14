@@ -176,20 +176,20 @@ export class SessionEventRepository {
     async search(filters: SearchFilters = {}, pagination: PaginationOptions): Promise<SearchResult<SessionEventDocument>> {
         try {
             const { page, limit, useScroll, scrollTTL = '1m' } = pagination;
-            
+
             // Build query
             const query = this.buildSearchQuery(filters);
 
             // Build sort options
             let sortOptions = [{ date: { order: 'desc' } }]; // Default sort
-            
+
             // If custom sort is provided, use it instead
             if (pagination.sort && pagination.sort.length > 0) {
                 sortOptions = pagination.sort.map(sortOpt => {
                     return { [sortOpt.field]: { order: sortOpt.order } };
                 });
             }
-            
+
             // Use scroll API for large result sets
             if (useScroll) {
                 const response = await elasticsearchClient.search({
@@ -201,17 +201,17 @@ export class SessionEventRepository {
                         size: limit
                     }
                 });
-                
+
                 // Process the scroll response
                 const data = response.hits.hits.map(hit => ({
                     id: hit._id,
                     ...hit._source as SessionEventDocument
                 }));
-                
+
                 const total = typeof response.hits.total === 'number'
                     ? response.hits.total
                     : response.hits.total?.value || 0;
-                    
+
                 return {
                     data,
                     total,
@@ -221,15 +221,15 @@ export class SessionEventRepository {
                     totalPages: Math.ceil(total / limit)
                 };
             }
-            
+
             // Use regular search for normal pagination
             const from = (page - 1) * limit;
-            
+
             // Ensure we don't exceed Elasticsearch's max window size (10,000)
             if (from + limit > 10000) {
                 throw new Error(`Result window is too large. Use scroll API by setting useScroll: true in pagination options.`);
             }
-            
+
             const response = await elasticsearchClient.search({
                 index: this.indexName,
                 body: {
@@ -267,7 +267,7 @@ export class SessionEventRepository {
             totalPages: Math.ceil(total / limit)
         };
     }
-    
+
     // Continue a scroll search using a scroll ID
     async scroll(scrollId: string, scrollTTL: string = '1m'): Promise<SearchResult<SessionEventDocument>> {
         try {
@@ -275,19 +275,19 @@ export class SessionEventRepository {
                 scroll_id: scrollId,
                 scroll: scrollTTL
             });
-            
+
             const data = response.hits.hits.map(hit => ({
                 id: hit._id,
                 ...hit._source as SessionEventDocument
             }));
-            
+
             const total = typeof response.hits.total === 'number'
                 ? response.hits.total
                 : response.hits.total?.value || 0;
-                
+
             // Calculate the next "page" (just for consistency in the API)
             const nextPage = 1; // Scroll doesn't have pages in the traditional sense
-            
+
             return {
                 data,
                 total,
@@ -301,7 +301,7 @@ export class SessionEventRepository {
             throw error;
         }
     }
-    
+
     // Clear a scroll context to free resources
     async clearScroll(scrollId: string): Promise<boolean> {
         try {
@@ -314,7 +314,7 @@ export class SessionEventRepository {
             return false;
         }
     }
-    
+
     // Get distinct categories
     async getDistinctCategories(): Promise<string[]> {
         try {
