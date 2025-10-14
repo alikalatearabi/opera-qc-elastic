@@ -61,8 +61,28 @@ class AudioController {
 
         } catch (error) {
             console.error("Error retrieving session events:", error);
-            const serviceResponse = ServiceResponse.failure("Error retrieving session events", null);
-            return handleServiceResponse(serviceResponse, res);
+            
+            // Check if headers have already been sent
+            if (!res.headersSent) {
+                // If headers not sent yet, send a proper error response
+                const serviceResponse = ServiceResponse.failure("Error retrieving session events", null);
+                return handleServiceResponse(serviceResponse, res);
+            } else {
+                // If headers already sent, we need to end the response properly
+                try {
+                    // Try to end the response with an error JSON if possible
+                    res.write(',"error":"Error retrieving session events"]}');
+                    res.end();
+                } catch (endError) {
+                    // Last resort - just try to end the response
+                    try {
+                        res.end();
+                    } catch (finalError) {
+                        // Nothing more we can do
+                        console.error("Failed to end response after error:", finalError);
+                    }
+                }
+            }
         }
     }
 }

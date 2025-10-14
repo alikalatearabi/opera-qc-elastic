@@ -12,7 +12,7 @@ export class AudioRepository {
     ) {
         const result = await sessionEventRepository.search({}, { 
             page: 1, 
-            limit: 10000,
+            limit: 5000, // Reduced limit to avoid hitting Elasticsearch window limit
             sort: [{ field: sortField, order: sortOrder }] 
         });
         return result.data.map(event => ({
@@ -42,7 +42,7 @@ export class AudioRepository {
         const lastEvent = await sessionEventRepository.findById(lastId);
         const result = await sessionEventRepository.search({}, { 
             page: 1, 
-            limit: 10000,
+            limit: 5000, // Reduced limit to avoid hitting Elasticsearch window limit
             sort: [{ field: sortField, order: sortOrder }] 
         });
         
@@ -85,15 +85,18 @@ export class AudioRepository {
         sortField = 'date',
         sortOrder: 'asc' | 'desc' = 'desc'
     ) {
+        // Ensure batch size doesn't exceed Elasticsearch limits
+        const safeBatchSize = Math.min(batchSize, 5000);
         let currentPage = 1;
         let hasMoreRecords = true;
 
         while (hasMoreRecords) {
-            const result = await sessionEventRepository.search({}, {
-                page: currentPage,
-                limit: batchSize,
-                sort: [{ field: sortField, order: sortOrder }]
-            });
+            try {
+                const result = await sessionEventRepository.search({}, {
+                    page: currentPage,
+                    limit: safeBatchSize,
+                    sort: [{ field: sortField, order: sortOrder }]
+                });
 
             if (result.data.length === 0) {
                 hasMoreRecords = false;
@@ -134,11 +137,18 @@ export class AudioRepository {
                 }
 
                 // Check if we've reached the end
-                if (result.data.length < batchSize) {
+                if (result.data.length < safeBatchSize) {
                     hasMoreRecords = false;
                 } else {
                     currentPage++;
                 }
+            }
+            } catch (error) {
+                console.error("Error in streamSessionEvents:", error);
+                // Stop the loop on error
+                hasMoreRecords = false;
+                // Re-throw the error to be handled by the caller
+                throw error;
             }
         }
     }
