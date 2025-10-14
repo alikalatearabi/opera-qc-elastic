@@ -69,6 +69,8 @@ export interface PaginationOptions {
     page: number;
     limit: number;
     sort?: SortOption[];
+    useScroll?: boolean; // Whether to use scroll API for large result sets
+    scrollTTL?: string; // Time to keep scroll context alive (e.g. '1m')
 }
 
 export interface SearchResult<T> {
@@ -76,6 +78,7 @@ export interface SearchResult<T> {
     total: number;
     page: number;
     limit: number;
+    scrollId?: string; // For scroll API pagination
     totalPages: number;
 }
 
@@ -172,9 +175,8 @@ export class SessionEventRepository {
     // Search session events with filters and pagination
     async search(filters: SearchFilters = {}, pagination: PaginationOptions): Promise<SearchResult<SessionEventDocument>> {
         try {
-            const { page, limit } = pagination;
-            const from = (page - 1) * limit;
-
+            const { page, limit, useScroll, scrollTTL = '1m' } = pagination;
+            
             // Build query
             const query = this.buildSearchQuery(filters);
 
@@ -188,6 +190,29 @@ export class SessionEventRepository {
                 });
             }
             
+            // Use scroll API for large result sets
+            if (useScroll) {
+                const response = await elasticsearchClient.search({
+                    index: this.indexName,
+                    scroll: scrollTTL,
+                    body: {
+                        query,
+                        sort: sortOptions,
+                        size: limit
+                    }
+                });
+                
+                return this.processScrollResponse(response, 1, limit);
+            }
+            
+            // Use regular search for normal pagination
+            const from = (page - 1) * limit;
+            
+            // Ensure we don't exceed Elasticsearch's max window size (10,000)
+            if (from + limit > 10000) {
+                throw new Error(`Result window is too large. Use scroll API by setting useScroll: true in pagination options.`);
+            }
+            
             const response = await elasticsearchClient.search({
                 index: this.indexName,
                 body: {
@@ -198,28 +223,81 @@ export class SessionEventRepository {
                 }
             });
 
-            const data = response.hits.hits.map(hit => ({
-                id: hit._id,
-                ...hit._source as SessionEventDocument
-            }));
-
-            const total = typeof response.hits.total === 'number'
-                ? response.hits.total
-                : response.hits.total?.value || 0;
-
-            return {
-                data,
-                total,
-                page,
-                limit,
-                totalPages: Math.ceil(total / limit)
-            };
+            // Process the response
+            return this.processResponse(response, page, limit);
         } catch (error) {
             logger.error('Error searching session events:', error);
             throw error;
         }
     }
 
+    // Process regular search response
+    private processResponse(response: any, page: number, limit: number): SearchResult<SessionEventDocument> {
+        const data = response.hits.hits.map(hit => ({
+            id: hit._id,
+            ...hit._source as SessionEventDocument
+        }));
+
+        const total = typeof response.hits.total === 'number'
+            ? response.hits.total
+            : response.hits.total?.value || 0;
+
+        return {
+            data,
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit)
+        };
+    }
+    
+    // Continue a scroll search using a scroll ID
+    async scroll(scrollId: string, scrollTTL: string = '1m'): Promise<SearchResult<SessionEventDocument>> {
+        try {
+            const response = await elasticsearchClient.scroll({
+                scroll_id: scrollId,
+                scroll: scrollTTL
+            });
+            
+            const data = response.hits.hits.map(hit => ({
+                id: hit._id,
+                ...hit._source as SessionEventDocument
+            }));
+            
+            const total = typeof response.hits.total === 'number'
+                ? response.hits.total
+                : response.hits.total?.value || 0;
+                
+            // Calculate the next "page" (just for consistency in the API)
+            const nextPage = 1; // Scroll doesn't have pages in the traditional sense
+            
+            return {
+                data,
+                total,
+                page: nextPage,
+                limit: data.length,
+                scrollId: response._scroll_id,
+                totalPages: Math.ceil(total / data.length)
+            };
+        } catch (error) {
+            logger.error('Error scrolling session events:', error);
+            throw error;
+        }
+    }
+    
+    // Clear a scroll context to free resources
+    async clearScroll(scrollId: string): Promise<boolean> {
+        try {
+            await elasticsearchClient.clearScroll({
+                scroll_id: scrollId
+            });
+            return true;
+        } catch (error) {
+            logger.error('Error clearing scroll:', error);
+            return false;
+        }
+    }
+    
     // Get distinct categories
     async getDistinctCategories(): Promise<string[]> {
         try {
