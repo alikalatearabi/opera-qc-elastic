@@ -128,6 +128,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:-your-secret-key}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-your-refresh-secret-key}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-1d}
+      - TRANSCRIPTION_API_URL=http://opera-tipax:8003
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000,http://localhost:5173,http://31.184.134.173:8082,http://host.docker.internal:8082, http://host.docker.internal:8081, http://31.184.134.173:8081}
     volumes:
       - ./conversations:/app/conversations:ro
@@ -146,18 +147,65 @@ services:
     env_file:
       - container.env
 
-  # operaai:
-  #   image: operaasr2:v1.1T
-  #   container_name: operaai
-  #   restart: always
-  #   runtime: nvidia
-  #   environment:
-  #     - NVIDIA_VISIBLE_DEVICES=all
-  #   ports:
-  #     - "8000:8000"
-  #   command: uvicorn main:app --host 0.0.0.0 --port 8000
-  #   networks:
-  #     - app-network
+  # Transcription Services
+  vllm-api:
+    image: vllm:v1.0
+    container_name: vllm-api
+    command: >
+      bash -c "python3 -m vllm.entrypoints.openai.api_server
+      --model /models/gpt-oss-20b
+      --port 8000
+      --dtype bfloat16
+      --tensor-parallel-size 1
+      --max-model-len 8192
+      --gpu-memory-utilization 0.75"
+    environment:
+      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:64
+    volumes:
+      - ~/Desktop/tipax/vllm/gpt-oss-20b:/models/gpt-oss-20b
+    ports:
+      - "8000:8000"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+              device_ids: ["1"]
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  operaasr-general:
+    image: faster_asr:v1.3
+    container_name: operaasr_general
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+    ports:
+      - "8001:8001"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+              device_ids: ["0"]
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  opera-tipax:
+    image: opera_tipax:v2.3
+    container_name: opera_tipax
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8003"]
+    ports:
+      - "8003:8003"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+              device_ids: ["1"]
+    restart: unless-stopped
+    networks:
+      - app-network
 
 networks:
   app-network:

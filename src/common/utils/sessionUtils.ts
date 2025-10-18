@@ -92,8 +92,8 @@ export const sendFilesToTranscriptionAPI = async (filePathIn: string, filePathOu
         form.append("customer", fs.createReadStream(filePathIn));
         form.append("agent", fs.createReadStream(filePathOut));
 
-        // Updated endpoint URL
-        const response = await axios.post("http://31.184.134.153:8003/transcription/", form, {
+        // Use configurable transcription API URL
+        const response = await axios.post(`${env.TRANSCRIPTION_API_URL}/transcription/`, form, {
             headers: {
                 ...form.getHeaders(),
                 "accept": "application/json"
@@ -116,7 +116,7 @@ export const sendToAnalysisAPI = async (transcriptionData: any) => {
 
         // Extract the actual transcription data from the wrapped object
         let transcriptionPayload = {};
-        
+
         if (transcriptionData.transcription) {
             // If it's wrapped in a transcription object, extract the Agent and Customer
             const { Agent, Customer } = transcriptionData.transcription;
@@ -137,9 +137,9 @@ export const sendToAnalysisAPI = async (transcriptionData: any) => {
 
         console.log("Sending transcription data to LLM API:", JSON.stringify(transcriptionPayload).substring(0, 200) + "...");
 
-        // Call the public analysis endpoint with the transcription data as JSON object
+        // Call the configurable analysis endpoint with the transcription data as JSON object
         const response = await axios.post(
-            "http://31.184.134.153:8003/analyze/",
+            `${env.TRANSCRIPTION_API_URL}/analyze/`,
             transcriptionPayload,
             {
                 headers: {

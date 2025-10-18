@@ -37,4 +37,5 @@ export const env = cleanEnv(process.env, {
     BULL_QUEUE: str({ devDefault: testOnly("analyseCalls") }),
     ELASTICSEARCH_URL: str({ devDefault: testOnly("http://localhost:9200") }),
     ELASTICSEARCH_INDEX_PREFIX: str({ devDefault: testOnly("opera-qc") }),
+    TRANSCRIPTION_API_URL: str({ devDefault: testOnly("http://opera-tipax:8003") }),
 });
