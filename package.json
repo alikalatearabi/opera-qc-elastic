@@ -24,7 +24,8 @@
     "migrate-verify": "tsx scripts/migrate-to-elasticsearch.ts --verify",
     "migrate-sample": "tsx scripts/migrate-to-elasticsearch.ts --sample",
     "cleanup-audio": "node cleanup-old-audio-files.js",
-    "cleanup-audio-dry": "node cleanup-old-audio-files.js --dry-run"
+    "cleanup-audio-dry": "node cleanup-old-audio-files.js --dry-run",
+    "show-redis-jobs": "node show-redis-jobs.js"
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7.0.0",
