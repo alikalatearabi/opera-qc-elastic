@@ -266,6 +266,46 @@ sessionEventRegistry.registerSecurePath({
   responses: createApiResponse(DestNumbersResponseSchema, "Destination Numbers Retrieved"),
 });
 
+sessionEventRegistry.registerSecurePath({
+  method: "get",
+  path: "/api/event/by-date/{date}",
+  tags: ["SessionEvent"],
+  parameters: [
+    {
+      name: "date",
+      in: "path",
+      description: "Persian date in DD-MM-YYYY format (e.g., 22-7-1404)",
+      required: true,
+      schema: {
+        type: "string",
+        pattern: "^\\d{1,2}-\\d{1,2}-\\d{4}$",
+        example: "22-7-1404"
+      },
+    },
+    {
+      name: "page",
+      in: "query",
+      description: "Page number for pagination",
+      required: false,
+      schema: {
+        type: "integer",
+        default: 1,
+      },
+    },
+    {
+      name: "limit",
+      in: "query",
+      description: "Number of items per page",
+      required: false,
+      schema: {
+        type: "integer",
+        default: 10,
+      },
+    },
+  ],
+  responses: createApiResponse(GetSessionEventsSchema, "Success"),
+});
+
 // Basic Auth configuration - UPDATED WITH MULTIPLE CREDENTIALS
 const basicAuthMiddleware = expressBasicAuth({
   users: {
@@ -285,6 +325,7 @@ sessionEventRouter.get("/job/:jobId", passport.authenticate("jwt", { session: fa
 sessionEventRouter.get("/topics", passport.authenticate("jwt", { session: false }), sessionEventController.getDistinctTopics);
 sessionEventRouter.get("/stats", passport.authenticate("jwt", { session: false }), sessionEventController.getSessionStats);
 sessionEventRouter.get("/destnumbers", passport.authenticate("jwt", { session: false }), sessionEventController.getDistinctDestNumbers);
+sessionEventRouter.get("/by-date/:date", passport.authenticate("jwt", { session: false }), sessionEventController.getSessionsByPersianDate);
 sessionEventRouter.get("/check-audio/:filename", passport.authenticate("jwt", { session: false }), sessionEventController.checkAudioFile);
 sessionEventRouter.get("/audio/:filename", passport.authenticate("jwt", { session: false }), sessionEventController.getAudioFile);
 sessionEventRouter.get("/:id", passport.authenticate("jwt", { session: false }), sessionEventController.getSessionEventById);

@@ -419,6 +419,145 @@ export class SessionEventController {
         }
     };
 
+    public getSessionsByPersianDate: RequestHandler = async (req: Request, res: Response) => {
+        try {
+            const { date } = req.params;
+            console.log(`Fetching sessions for Persian date: ${date}`);
+
+            // Extract pagination parameters from query
+            const page = parseInt(req.query.page as string) || 1;
+            const limit = parseInt(req.query.limit as string) || 10;
+
+            // Validate Persian date format (DD-MM-YYYY)
+            const dateRegex = /^\d{1,2}-\d{1,2}-\d{4}$/;
+            if (!dateRegex.test(date)) {
+                return handleServiceResponse(
+                    ServiceResponse.failure("Invalid date format. Use DD-MM-YYYY format (e.g., 22-7-1404)", {}, StatusCodes.BAD_REQUEST),
+                    res
+                );
+            }
+
+            // Parse Persian date components
+            const [day, month, year] = date.split('-').map(Number);
+
+            // Convert Persian date to Gregorian date range using moment-jalaali
+            const moment = require('moment-jalaali');
+
+            // Create start of day in Persian calendar
+            const persianStartOfDay = moment(`${year}-${month}-${day}`, 'jYYYY-jM-jD');
+            if (!persianStartOfDay.isValid()) {
+                return handleServiceResponse(
+                    ServiceResponse.failure("Invalid Persian date", {}, StatusCodes.BAD_REQUEST),
+                    res
+                );
+            }
+
+            // Create end of day in Persian calendar
+            const persianEndOfDay = persianStartOfDay.clone().endOf('day');
+
+            // Convert to Gregorian dates
+            const gregorianStart = persianStartOfDay.toDate();
+            const gregorianEnd = persianEndOfDay.toDate();
+
+            console.log(`Persian date ${date} converted to Gregorian range: ${gregorianStart.toISOString()} to ${gregorianEnd.toISOString()}`);
+
+            // Extract additional filters from query (same as getSessions)
+            const filters: SearchFilters = {
+                dateFrom: gregorianStart,
+                dateTo: gregorianEnd
+            };
+
+            if (req.query.emotion) filters.emotion = req.query.emotion as string;
+            if (req.query.category) filters.category = req.query.category as string;
+            if (req.query.topic) filters.topic = req.query.topic as string;
+            if (req.query.destNumber) filters.destNumber = req.query.destNumber as string;
+            if (req.query.type) filters.type = req.query.type as 'incoming' | 'outgoing';
+            if (req.query.searchText) filters.searchText = req.query.searchText as string;
+
+            console.log("Date filter and additional params:", { date, gregorianStart, gregorianEnd, page, limit, filters });
+
+            // Search using Elasticsearch
+            const result = await sessionEventRepository.search(filters, { page, limit });
+
+            // Format sessions with only the requested fields (same as getSessions)
+            const formattedSessions = result.data.map(event => ({
+                id: event.id,
+                destNumber: event.destNumber,
+                searchText: event.searchText || "",
+                transcription: event.transcription,
+                explanation: event.explanation,
+                topic: event.topic,
+                sourceNumber: event.sourceNumber,
+                date: event.date
+            }));
+
+            console.log(`Fetched ${formattedSessions.length} sessions for Persian date ${date}`);
+
+            // Handle empty results
+            if (formattedSessions.length === 0) {
+                return handleServiceResponse(
+                    ServiceResponse.success(
+                        `No processed session events found for Persian date ${date}`,
+                        {
+                            data: [],
+                            pagination: {
+                                currentPage: 1,
+                                totalPages: 0,
+                                totalItems: 0,
+                                limit,
+                                hasNextPage: false,
+                                hasPrevPage: false,
+                                appliedFilters: {
+                                    persianDate: date,
+                                    emotion: filters.emotion || null,
+                                    category: filters.category || null,
+                                    topic: filters.topic || null,
+                                    destNumber: filters.destNumber || null
+                                }
+                            }
+                        }
+                    ),
+                    res
+                );
+            }
+
+            // Create pagination metadata
+            const pagination = {
+                currentPage: result.page,
+                totalPages: result.totalPages,
+                totalItems: result.total,
+                limit: result.limit,
+                hasNextPage: result.page < result.totalPages,
+                hasPrevPage: result.page > 1,
+                appliedFilters: {
+                    persianDate: date,
+                    emotion: filters.emotion || null,
+                    category: filters.category || null,
+                    topic: filters.topic || null,
+                    destNumber: filters.destNumber || null
+                }
+            };
+
+            return handleServiceResponse(
+                ServiceResponse.success(
+                    `Session events for Persian date ${date} retrieved successfully`,
+                    {
+                        data: formattedSessions,
+                        pagination
+                    }
+                ),
+                res
+            );
+
+        } catch (error) {
+            console.error(`Error fetching sessions for Persian date ${req.params.date}:`, error);
+            return handleServiceResponse(
+                ServiceResponse.failure(`Error fetching session events for date ${req.params.date}`, error, StatusCodes.INTERNAL_SERVER_ERROR),
+                res
+            );
+        }
+    };
+
     public getAudioFile: RequestHandler = async (req: Request, res: Response) => {
         try {
             const filename = req.params.filename;
