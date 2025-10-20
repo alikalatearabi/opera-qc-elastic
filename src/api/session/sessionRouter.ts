@@ -266,7 +266,7 @@ sessionEventRegistry.registerSecurePath({
   responses: createApiResponse(DestNumbersResponseSchema, "Destination Numbers Retrieved"),
 });
 
-sessionEventRegistry.registerSecurePath({
+sessionEventRegistry.registerPath({
   method: "get",
   path: "/api/event/by-date/{date}",
   tags: ["SessionEvent"],
@@ -325,7 +325,7 @@ sessionEventRouter.get("/job/:jobId", passport.authenticate("jwt", { session: fa
 sessionEventRouter.get("/topics", passport.authenticate("jwt", { session: false }), sessionEventController.getDistinctTopics);
 sessionEventRouter.get("/stats", passport.authenticate("jwt", { session: false }), sessionEventController.getSessionStats);
 sessionEventRouter.get("/destnumbers", passport.authenticate("jwt", { session: false }), sessionEventController.getDistinctDestNumbers);
-sessionEventRouter.get("/by-date/:date", passport.authenticate("jwt", { session: false }), sessionEventController.getSessionsByPersianDate);
+sessionEventRouter.get("/by-date/:date", sessionEventController.getSessionsByPersianDate);
 sessionEventRouter.get("/check-audio/:filename", passport.authenticate("jwt", { session: false }), sessionEventController.checkAudioFile);
 sessionEventRouter.get("/audio/:filename", passport.authenticate("jwt", { session: false }), sessionEventController.getAudioFile);
 sessionEventRouter.get("/:id", passport.authenticate("jwt", { session: false }), sessionEventController.getSessionEventById);
