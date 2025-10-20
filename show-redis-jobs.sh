@@ -54,28 +54,66 @@ print_info() {
 
 # Function to check if redis-cli is available
 check_redis_cli() {
-    if ! command -v redis-cli &> /dev/null; then
-        print_error "redis-cli is not installed or not in PATH"
-        echo "Please install Redis CLI tools:"
-        echo "  Ubuntu/Debian: sudo apt-get install redis-tools"
-        echo "  CentOS/RHEL: sudo yum install redis"
-        echo "  macOS: brew install redis"
-        exit 1
+    if command -v redis-cli &> /dev/null; then
+        return 0
+    fi
+
+    # Try to use docker exec if redis-cli is not available
+    if command -v docker &> /dev/null; then
+        print_warning "redis-cli not found, trying Docker container access..."
+
+        # Check if opera-qc-redis container is running
+        if docker ps --format "table {{.Names}}" | grep -q "^opera-qc-redis$"; then
+            print_info "Found opera-qc-redis container, will use Docker exec"
+            USE_DOCKER=true
+            return 0
+        fi
+    fi
+
+    print_error "redis-cli is not installed and Docker redis container not found"
+    echo "Please install Redis CLI tools:"
+    echo "  Ubuntu/Debian: sudo apt-get install redis-tools"
+    echo "  CentOS/RHEL: sudo yum install redis"
+    echo "  macOS: brew install redis"
+    echo ""
+    echo "Or ensure Redis container is running:"
+    echo "  docker-compose up -d redis"
+    exit 1
+}
+
+# Function to execute redis command (with or without docker)
+redis_cmd() {
+    if [ "$USE_DOCKER" = true ]; then
+        docker exec opera-qc-redis redis-cli "$@"
+    else
+        redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" "$@"
     fi
 }
 
 # Function to test Redis connection
 test_redis_connection() {
-    print_info "Testing Redis connection to $REDIS_HOST:$REDIS_PORT..."
+    print_info "Testing Redis connection..."
 
-    if redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" ping &> /dev/null; then
+    if [ "$USE_DOCKER" = true ]; then
+        print_info "Using Docker container: opera-qc-redis"
+    else
+        print_info "Connecting to $REDIS_HOST:$REDIS_PORT"
+    fi
+
+    if redis_cmd ping &> /dev/null; then
         print_success "Connected to Redis"
         return 0
     else
-        print_error "Failed to connect to Redis at $REDIS_HOST:$REDIS_PORT"
-        echo "Make sure Redis is running and accessible."
-        echo "For local development: redis-server"
-        echo "For Docker: docker-compose up -d redis"
+        print_error "Failed to connect to Redis"
+        if [ "$USE_DOCKER" = true ]; then
+            echo "Make sure the opera-qc-redis container is running:"
+            echo "  docker-compose ps"
+            echo "  docker-compose up -d redis"
+        else
+            echo "Make sure Redis is running and accessible at $REDIS_HOST:$REDIS_PORT"
+            echo "For local development: redis-server"
+            echo "For Docker: docker-compose up -d redis"
+        fi
         exit 1
     fi
 }
@@ -86,7 +124,7 @@ get_redis_info() {
 
     # Get basic Redis info
     local redis_info
-    redis_info=$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" info server 2>/dev/null)
+    redis_info=$(redis_cmd info server 2>/dev/null)
 
     if [ $? -eq 0 ]; then
         local redis_version
@@ -113,7 +151,7 @@ get_queue_length() {
     local queue_type=$2
 
     local length
-    length=$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" LLEN "bull:$queue_name:$queue_type" 2>/dev/null)
+    length=$(redis_cmd LLEN "bull:$queue_name:$queue_type" 2>/dev/null)
 
     # Handle errors
     if [ $? -ne 0 ] || [ -z "$length" ]; then
@@ -130,7 +168,7 @@ get_job_details() {
     local max_jobs=${3:-5}
 
     local jobs
-    jobs=$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" LRANGE "bull:$queue_name:$queue_type" 0 "$((max_jobs-1))" 2>/dev/null)
+    jobs=$(redis_cmd LRANGE "bull:$queue_name:$queue_type" 0 "$((max_jobs-1))" 2>/dev/null)
 
     if [ $? -eq 0 ] && [ -n "$jobs" ]; then
         echo "$jobs"
