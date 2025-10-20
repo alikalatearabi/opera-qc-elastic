@@ -427,6 +427,7 @@ export class SessionEventController {
             // Extract pagination parameters from query
             const page = parseInt(req.query.page as string) || 1;
             const limit = parseInt(req.query.limit as string) || 10;
+            const includeUnprocessed = req.query.includeUnprocessed === 'true'; // Debug parameter
 
             // Validate Persian date format (DD-MM-YYYY)
             const dateRegex = /^\d{1,2}-\d{1,2}-\d{4}$/;
@@ -437,34 +438,15 @@ export class SessionEventController {
                 );
             }
 
-            // Parse Persian date components
+            // Parse Persian date components and create date string for exact match
             const [day, month, year] = date.split('-').map(Number);
+            const persianDateString = `${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
 
-            // Convert Persian date to Gregorian date range using moment-jalaali
-            const moment = require('moment-jalaali');
-
-            // Create start of day in Persian calendar
-            const persianStartOfDay = moment(`${year}-${month}-${day}`, 'jYYYY-jM-jD');
-            if (!persianStartOfDay.isValid()) {
-                return handleServiceResponse(
-                    ServiceResponse.failure("Invalid Persian date", {}, StatusCodes.BAD_REQUEST),
-                    res
-                );
-            }
-
-            // Create end of day in Persian calendar
-            const persianEndOfDay = persianStartOfDay.clone().endOf('day');
-
-            // Convert to Gregorian dates
-            const gregorianStart = persianStartOfDay.toDate();
-            const gregorianEnd = persianEndOfDay.toDate();
-
-            console.log(`Persian date ${date} converted to Gregorian range: ${gregorianStart.toISOString()} to ${gregorianEnd.toISOString()}`);
+            console.log(`Searching for exact Persian date match: ${persianDateString}`);
 
             // Extract additional filters from query (same as getSessions)
             const filters: SearchFilters = {
-                dateFrom: gregorianStart,
-                dateTo: gregorianEnd
+                persianDate: persianDateString // Use exact Persian date match instead of Gregorian range
             };
 
             if (req.query.emotion) filters.emotion = req.query.emotion as string;
@@ -474,10 +456,10 @@ export class SessionEventController {
             if (req.query.type) filters.type = req.query.type as 'incoming' | 'outgoing';
             if (req.query.searchText) filters.searchText = req.query.searchText as string;
 
-            console.log("Date filter and additional params:", { date, gregorianStart, gregorianEnd, page, limit, filters });
+            console.log("Date filter and additional params:", { date, persianDateString, page, limit, filters, includeUnprocessed });
 
-            // Search using Elasticsearch
-            const result = await sessionEventRepository.search(filters, { page, limit });
+            // Search using Elasticsearch - conditionally include transcription requirement
+            const result = await sessionEventRepository.search(filters, { page, limit }, includeUnprocessed);
 
             // Format sessions with only the requested fields (same as getSessions)
             const formattedSessions = result.data.map(event => ({
@@ -488,16 +470,22 @@ export class SessionEventController {
                 explanation: event.explanation,
                 topic: event.topic,
                 sourceNumber: event.sourceNumber,
-                date: event.date
+                date: event.date,
+                type: event.type,
+                filename: event.filename,
+                hasTranscription: !!event.transcription
             }));
 
-            console.log(`Fetched ${formattedSessions.length} sessions for Persian date ${date}`);
+            console.log(`Fetched ${formattedSessions.length} sessions for Persian date ${date} (includeUnprocessed: ${includeUnprocessed})`);
 
             // Handle empty results
             if (formattedSessions.length === 0) {
+                const message = includeUnprocessed
+                    ? `No session events found for Persian date ${date} (including unprocessed)`
+                    : `No processed session events found for Persian date ${date}`;
                 return handleServiceResponse(
                     ServiceResponse.success(
-                        `No processed session events found for Persian date ${date}`,
+                        message,
                         {
                             data: [],
                             pagination: {
@@ -512,7 +500,8 @@ export class SessionEventController {
                                     emotion: filters.emotion || null,
                                     category: filters.category || null,
                                     topic: filters.topic || null,
-                                    destNumber: filters.destNumber || null
+                                    destNumber: filters.destNumber || null,
+                                    includeUnprocessed
                                 }
                             }
                         }
@@ -534,13 +523,18 @@ export class SessionEventController {
                     emotion: filters.emotion || null,
                     category: filters.category || null,
                     topic: filters.topic || null,
-                    destNumber: filters.destNumber || null
+                    destNumber: filters.destNumber || null,
+                    includeUnprocessed
                 }
             };
 
+            const message = includeUnprocessed
+                ? `Session events for Persian date ${date} retrieved successfully (including unprocessed)`
+                : `Session events for Persian date ${date} retrieved successfully`;
+
             return handleServiceResponse(
                 ServiceResponse.success(
-                    `Session events for Persian date ${date} retrieved successfully`,
+                    message,
                     {
                         data: formattedSessions,
                         pagination

@@ -57,6 +57,7 @@ export interface SearchFilters {
     type?: 'incoming' | 'outgoing';
     dateFrom?: Date;
     dateTo?: Date;
+    persianDate?: string; // For exact Persian date matching
     searchText?: string;
 }
 
@@ -173,12 +174,12 @@ export class SessionEventRepository {
     }
 
     // Search session events with filters and pagination
-    async search(filters: SearchFilters = {}, pagination: PaginationOptions): Promise<SearchResult<SessionEventDocument>> {
+    async search(filters: SearchFilters = {}, pagination: PaginationOptions, includeUnprocessed: boolean = false): Promise<SearchResult<SessionEventDocument>> {
         try {
             const { page, limit, useScroll, scrollTTL = '1m' } = pagination;
 
             // Build query
-            const query = this.buildSearchQuery(filters);
+            const query = this.buildSearchQuery(filters, includeUnprocessed);
 
             // Build sort options
             let sortOptions = [{ date: { order: 'desc' } }]; // Default sort
@@ -582,14 +583,16 @@ export class SessionEventRepository {
     }
 
     // Build search query based on filters
-    private buildSearchQuery(filters: SearchFilters) {
+    private buildSearchQuery(filters: SearchFilters, includeUnprocessed: boolean = false) {
         const must: any[] = [];
         const filter: any[] = [];
 
-        // Only show calls with transcription data (processed calls)
-        must.push({
-            exists: { field: 'transcription' }
-        });
+        // Only show calls with transcription data (processed calls) unless includeUnprocessed is true
+        if (!includeUnprocessed) {
+            must.push({
+                exists: { field: 'transcription' }
+            });
+        }
 
         if (filters.emotion) {
             filter.push({ term: { emotion: filters.emotion } });
@@ -632,6 +635,13 @@ export class SessionEventRepository {
             if (filters.dateFrom) range.gte = filters.dateFrom;
             if (filters.dateTo) range.lte = filters.dateTo;
             filter.push({ range: { date: range } });
+        }
+
+        if (filters.persianDate) {
+            // Search for dates that start with the Persian date (YYYY-MM-DD format)
+            filter.push({
+                prefix: { date: filters.persianDate }
+            });
         }
 
         if (filters.searchText) {
