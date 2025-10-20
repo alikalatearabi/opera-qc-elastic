@@ -175,37 +175,37 @@ services:
     networks:
       - app-network
 
-  operaasr-general:
-    image: faster_asr:v1.3
-    container_name: operaasr_general
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
-    ports:
-      - "8001:8001"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities: [gpu]
-              device_ids: ["0"]
-    restart: unless-stopped
-    networks:
-      - app-network
+  # operaasr-general:
+  #   image: faster_asr:v1.3
+  #   container_name: operaasr_general
+  #   command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
+  #   ports:
+  #     - "8001:8001"
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - capabilities: [gpu]
+  #             device_ids: ["0"]
+  #   restart: unless-stopped
+  #   networks:
+  #     - app-network
 
-  opera-tipax:
-    image: opera_tipax:v2.3
-    container_name: opera_tipax
-    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8003"]
-    ports:
-      - "8003:8003"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities: [gpu]
-              device_ids: ["1"]
-    restart: unless-stopped
-    networks:
-      - app-network
+  # opera-tipax:
+  #   image: opera_tipax:v2.3
+  #   container_name: opera_tipax
+  #   command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8003"]
+  #   ports:
+  #     - "8003:8003"
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - capabilities: [gpu]
+  #             device_ids: ["1"]
+  #   restart: unless-stopped
+  #   networks:
+  #     - app-network
 
 networks:
   app-network:
