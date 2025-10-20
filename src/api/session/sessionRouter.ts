@@ -302,6 +302,16 @@ sessionEventRegistry.registerPath({
         default: 10,
       },
     },
+    {
+      name: "includeUnprocessed",
+      in: "query",
+      description: "Include unprocessed (not transcribed) calls as well",
+      required: false,
+      schema: {
+        type: "boolean",
+        default: false
+      }
+    },
   ],
   responses: createApiResponse(GetSessionEventsSchema, "Success"),
 });
