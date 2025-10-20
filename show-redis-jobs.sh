@@ -331,5 +331,4 @@ main() {
 trap 'echo -e "\n👋 Shutting down gracefully..."; exit 0' INT
 
 # Run main function
-main "$@"</content>
-<parameter name="filePath">/home/ali/Documents/work-projects/Gashtasb/Opera-qc-back-elastic/show-redis-jobs.sh
+main "$@"
