@@ -73,8 +73,17 @@ export class SessionEventController {
 
             console.log(`[API_CALL_ACCEPTED] Processing incoming call, filename: ${filename}`);
 
-            // Convert date to ISO format
-            const isoDate = moment(date, 'YYYY-MM-DD HH:mm:ss').toDate();
+            // Convert Persian date to Gregorian date
+            // Input format is Persian: YYYY-MM-DD HH:mm:ss
+            const moment = require('moment-jalaali');
+            const [persianDatePart, timePart] = date.split(' ');
+            const [year, month, day] = persianDatePart.split('-').map(Number);
+
+            // Create Persian moment and convert to Gregorian
+            const persianMoment = moment(`${year}-${month}-${day} ${timePart}`, 'jYYYY-jM-jD HH:mm:ss');
+            const gregorianDate = persianMoment.toDate();
+
+            console.log(`Converted Persian date ${date} to Gregorian: ${gregorianDate.toISOString()}`);
 
             // Add job to sequential queue instead of the regular queue
             const job = await addSequentialJob('process-session', {
@@ -84,7 +93,7 @@ export class SessionEventController {
                 queue,
                 destChannel: dest_channel,
                 destNumber: dest_number,
-                date: isoDate,
+                date: gregorianDate,
                 duration,
                 filename,
                 // Add these fields from the request if provided

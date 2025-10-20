@@ -638,9 +638,24 @@ export class SessionEventRepository {
         }
 
         if (filters.persianDate) {
-            // Search for dates that start with the Persian date (YYYY-MM-DD format)
+            // Convert Persian date to Gregorian date range for searching
+            // persianDate is in format YYYY-MM-DD
+            const moment = require('moment-jalaali');
+            const [year, month, day] = filters.persianDate.split('-').map(Number);
+
+            const persianStartOfDay = moment(`${year}-${month}-${day}`, 'jYYYY-jM-jD');
+            const persianEndOfDay = persianStartOfDay.clone().endOf('day');
+
+            const gregorianStart = persianStartOfDay.toDate();
+            const gregorianEnd = persianEndOfDay.toDate();
+
             filter.push({
-                prefix: { date: filters.persianDate }
+                range: {
+                    date: {
+                        gte: gregorianStart,
+                        lte: gregorianEnd
+                    }
+                }
             });
         }
 
