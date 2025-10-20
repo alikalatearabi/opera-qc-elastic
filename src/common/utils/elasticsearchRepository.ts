@@ -3,6 +3,27 @@ import { pino } from 'pino';
 
 const logger = pino({ name: 'elasticsearch-repository' });
 
+// Elasticsearch response types
+interface ElasticsearchHit<T> {
+    _id: string;
+    _source: T;
+}
+
+interface ElasticsearchSearchResponse<T> {
+    hits: {
+        hits: ElasticsearchHit<T>[];
+        total: number | { value: number; relation: string };
+    };
+    aggregations?: any;
+    _scroll_id?: string;
+}
+
+interface ElasticsearchGetResponse<T> {
+    _id: string;
+    _source: T;
+    found: boolean;
+}
+
 export interface SessionEventDocument {
     id?: string;
     level: number;
@@ -20,6 +41,7 @@ export interface SessionEventDocument {
     date: Date | string;
     duration: string;
     filename: string;
+    uniqueid?: string; // Unique identifier for the call
     incommingfileUrl?: string;
     outgoingfileUrl?: string;
     transcription?: {
@@ -108,7 +130,7 @@ export class SessionEventRepository {
                 id: response._id
             };
         } catch (error) {
-            logger.error('Error creating session event:', error);
+            logger.error({ err: error }, 'Error creating session event');
             throw error;
         }
     }
@@ -132,7 +154,7 @@ export class SessionEventRepository {
             if (error.statusCode === 404) {
                 return null;
             }
-            logger.error('Error finding session event by ID:', error);
+            logger.error({ err: error }, 'Error finding session event by ID');
             throw error;
         }
     }
@@ -168,7 +190,7 @@ export class SessionEventRepository {
             if (error.statusCode === 404) {
                 return null;
             }
-            logger.error('Error updating session event:', error);
+            logger.error({ err: error }, 'Error updating session event');
             throw error;
         }
     }
@@ -182,13 +204,13 @@ export class SessionEventRepository {
             const query = this.buildSearchQuery(filters, includeUnprocessed);
 
             // Build sort options
-            let sortOptions = [{ date: { order: 'desc' } }]; // Default sort
+            let sortOptions: any[] = [{ date: { order: 'desc' } }]; // Default sort
 
             // If custom sort is provided, use it instead
             if (pagination.sort && pagination.sort.length > 0) {
-                sortOptions = pagination.sort.map(sortOpt => {
-                    return { [sortOpt.field]: { order: sortOpt.order } };
-                });
+                sortOptions = pagination.sort.map(sortOpt => ({
+                    [sortOpt.field]: { order: sortOpt.order }
+                }));
             }
 
             // Use scroll API for large result sets
@@ -204,7 +226,7 @@ export class SessionEventRepository {
                 });
 
                 // Process the scroll response
-                const data = response.hits.hits.map(hit => ({
+                const data = response.hits.hits.map((hit: any) => ({
                     id: hit._id,
                     ...hit._source as SessionEventDocument
                 }));
@@ -244,14 +266,14 @@ export class SessionEventRepository {
             // Process the response
             return this.processResponse(response, page, limit);
         } catch (error) {
-            logger.error('Error searching session events:', error);
+            logger.error({ err: error }, 'Error searching session events');
             throw error;
         }
     }
 
     // Process regular search response
     private processResponse(response: any, page: number, limit: number): SearchResult<SessionEventDocument> {
-        const data = response.hits.hits.map(hit => ({
+        const data = response.hits.hits.map((hit: any) => ({
             id: hit._id,
             ...hit._source as SessionEventDocument
         }));
@@ -298,7 +320,7 @@ export class SessionEventRepository {
                 totalPages: Math.ceil(total / data.length)
             };
         } catch (error) {
-            logger.error('Error scrolling session events:', error);
+            logger.error({ err: error }, 'Error scrolling session events');
             throw error;
         }
     }
@@ -311,7 +333,7 @@ export class SessionEventRepository {
             });
             return true;
         } catch (error) {
-            logger.error('Error clearing scroll:', error);
+            logger.error({ err: error }, 'Error clearing scroll');
             return false;
         }
     }
@@ -334,9 +356,9 @@ export class SessionEventRepository {
                 }
             });
 
-            return response.aggregations?.categories.buckets.map((bucket: any) => bucket.key) || [];
+            return (response.aggregations as any)?.categories.buckets.map((bucket: any) => bucket.key) || [];
         } catch (error) {
-            logger.error('Error getting distinct categories:', error);
+            logger.error({ err: error }, 'Error getting distinct categories');
             throw error;
         }
     }
@@ -372,9 +394,9 @@ export class SessionEventRepository {
                 }
             });
 
-            return response.aggregations?.topic_values.buckets.map((bucket: any) => bucket.key) || [];
+            return (response.aggregations as any)?.topic_values.buckets.map((bucket: any) => bucket.key) || [];
         } catch (error) {
-            logger.error('Error getting distinct topics:', error);
+            logger.error({ err: error }, 'Error getting distinct topics');
             // Fallback: get all documents and extract topics client-side
             return this.getDistinctTopicsFallback();
         }
@@ -429,9 +451,9 @@ export class SessionEventRepository {
                 }
             });
 
-            return response.aggregations?.dest_numbers.buckets.map((bucket: any) => bucket.key) || [];
+            return (response.aggregations as any)?.dest_numbers.buckets.map((bucket: any) => bucket.key) || [];
         } catch (error) {
-            logger.error('Error getting distinct destination numbers:', error);
+            logger.error({ err: error }, 'Error getting distinct destination numbers');
             throw error;
         }
     }
@@ -475,7 +497,7 @@ export class SessionEventRepository {
                 }
             });
 
-            const aggs = response.aggregations;
+            const aggs = response.aggregations as any;
             const topEmotionBucket = aggs?.top_emotion.buckets[0];
 
             return {
@@ -487,7 +509,7 @@ export class SessionEventRepository {
                 distinct_topics: (await this.getDistinctTopics()).length
             };
         } catch (error) {
-            logger.error('Error getting session statistics:', error);
+            logger.error({ err: error }, 'Error getting session statistics');
             throw error;
         }
     }
@@ -577,7 +599,7 @@ export class SessionEventRepository {
 
             return this.formatDashboardResponse(response.aggregations);
         } catch (error) {
-            logger.error('Error getting dashboard data:', error);
+            logger.error({ err: error }, 'Error getting dashboard data');
             throw error;
         }
     }
@@ -778,7 +800,7 @@ export class UserRepository {
                 id: response._id
             };
         } catch (error) {
-            logger.error('Error creating user:', error);
+            logger.error({ err: error }, 'Error creating user');
             throw error;
         }
     }
@@ -803,7 +825,7 @@ export class UserRepository {
             }
             return null;
         } catch (error) {
-            logger.error('Error finding user by email:', error);
+            logger.error({ err: error }, 'Error finding user by email');
             throw error;
         }
     }
@@ -826,7 +848,7 @@ export class UserRepository {
             if (error.statusCode === 404) {
                 return null;
             }
-            logger.error('Error finding user by ID:', error);
+            logger.error({ err: error }, 'Error finding user by ID');
             throw error;
         }
     }

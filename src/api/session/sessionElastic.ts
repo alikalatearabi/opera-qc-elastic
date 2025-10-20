@@ -35,6 +35,7 @@ export class SessionEventController {
                 date,
                 duration,
                 filename,
+                uniqueid,
                 level,
                 time,
                 pid,
@@ -44,11 +45,11 @@ export class SessionEventController {
             } = req.body;
 
             // Log the call details
-            console.log(`[API_CALL_DETAILS] Type: ${type}, Filename: ${filename}, Date: ${date}, Source: ${source_number}, Dest: ${dest_number}`);
+            console.log(`[API_CALL_DETAILS] Type: ${type}, Filename: ${filename}, Date: ${date}, Source: ${source_number}, Dest: ${dest_number}, UniqueID: ${uniqueid || 'N/A'}`);
 
             // Validate required fields
             if (!type || !source_channel || !source_number || !queue || !dest_channel || !dest_number || !date || !duration || !filename) {
-                console.log(`[API_CALL_REJECTED] Missing required fields for filename: ${filename}`);
+                console.log(`[API_CALL_REJECTED] Missing required fields for filename: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
                 return res.status(StatusCodes.BAD_REQUEST).json({
                     success: false,
                     message: "Missing required fields",
@@ -59,7 +60,7 @@ export class SessionEventController {
 
             // Check if the call is incoming, otherwise skip processing
             if (type !== 'incoming') {
-                console.log(`[API_CALL_SKIPPED] Non-incoming call type: ${type}, filename: ${filename}`);
+                console.log(`[API_CALL_SKIPPED] Non-incoming call type: ${type}, filename: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
                 return res.status(StatusCodes.OK).json({
                     success: true,
                     message: "Non-incoming call received. No processing performed.",
@@ -71,19 +72,28 @@ export class SessionEventController {
                 });
             }
 
-            console.log(`[API_CALL_ACCEPTED] Processing incoming call, filename: ${filename}`);
+            console.log(`[API_CALL_ACCEPTED] Processing incoming call, filename: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
 
             // Convert Persian date to Gregorian date
-            // Input format is Persian: YYYY-MM-DD HH:mm:ss
+            // Handle different input formats: "YYYY-MM-DD HH:mm:ss" or ISO string
             const moment = require('moment-jalaali');
-            const [persianDatePart, timePart] = date.split(' ');
-            const [year, month, day] = persianDatePart.split('-').map(Number);
+            let gregorianDate: Date;
 
-            // Create Persian moment and convert to Gregorian
-            const persianMoment = moment(`${year}-${month}-${day} ${timePart}`, 'jYYYY-jM-jD HH:mm:ss');
-            const gregorianDate = persianMoment.toDate();
-
-            console.log(`Converted Persian date ${date} to Gregorian: ${gregorianDate.toISOString()}`);
+            if (date.includes('T') && date.includes('Z')) {
+                // ISO format like "1404-07-22T10:00:00.000Z" - treat as Persian date
+                const dateOnly = date.split('T')[0]; // Extract YYYY-MM-DD part
+                const [year, month, day] = dateOnly.split('-').map(Number);
+                const persianMoment = moment(`${year}-${month}-${day}`, 'jYYYY-jM-jD');
+                gregorianDate = persianMoment.toDate();
+                console.log(`Converted Persian ISO date ${date} to Gregorian: ${gregorianDate.toISOString()}`);
+            } else {
+                // Original format: Persian YYYY-MM-DD HH:mm:ss
+                const [persianDatePart, timePart] = date.split(' ');
+                const [year, month, day] = persianDatePart.split('-').map(Number);
+                const persianMoment = moment(`${year}-${month}-${day} ${timePart}`, 'jYYYY-jM-jD HH:mm:ss');
+                gregorianDate = persianMoment.toDate();
+                console.log(`Converted Persian date ${date} to Gregorian: ${gregorianDate.toISOString()}`);
+            }
 
             // Add job to sequential queue instead of the regular queue
             const job = await addSequentialJob('process-session', {
@@ -96,6 +106,7 @@ export class SessionEventController {
                 date: gregorianDate,
                 duration,
                 filename,
+                uniqueid,
                 // Add these fields from the request if provided
                 level: level || 30,
                 time: time || new Date().getTime(),
@@ -105,7 +116,7 @@ export class SessionEventController {
                 msg: msg || "New call session"
             });
 
-            console.log(`[API_CALL_QUEUED] Job queued successfully with ID: ${job.id}, filename: ${filename}`);
+            console.log(`[API_CALL_QUEUED] Job queued successfully with ID: ${job.id}, filename: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
 
             return res.status(StatusCodes.OK).json({
                 success: true,

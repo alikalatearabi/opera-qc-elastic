@@ -159,7 +159,8 @@ async function processSessionJob(jobData: any) {
             destNumber,
             date,
             duration,
-            filename
+            filename,
+            uniqueid
         } = jobData;
 
         console.log("Processing session job with data:", jobData);
@@ -279,6 +280,7 @@ async function processSessionJob(jobData: any) {
             date: convertedDate,
             duration,
             filename,
+            uniqueid, // Add uniqueid field
             keyWords: [] // Initialize with empty array
         });
 
@@ -298,7 +300,11 @@ async function processSessionJob(jobData: any) {
         }
 
         // Queue transcription job in the dedicated transcription queue (non-blocking)
-        await addTranscriptionJob(sessionEvent.id, customerFilePath, agentFilePath, filename);
+        if (sessionEvent.id) {
+            await addTranscriptionJob(sessionEvent.id, customerFilePath, agentFilePath, filename);
+        } else {
+            console.error("Session event ID is undefined, cannot queue transcription job");
+        }
 
         console.log(`Fast processing completed for session ${sessionEvent.id}, transcription queued`);
 
