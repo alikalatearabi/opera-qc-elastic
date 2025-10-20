@@ -148,32 +148,32 @@ services:
       - container.env
 
   # Transcription Services
-  vllm-api:
-    image: vllm:v1.0
-    container_name: vllm-api
-    command: >
-      bash -c "python3 -m vllm.entrypoints.openai.api_server
-      --model /models/gpt-oss-20b
-      --port 8000
-      --dtype bfloat16
-      --tensor-parallel-size 1
-      --max-model-len 8192
-      --gpu-memory-utilization 0.75"
-    environment:
-      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:64
-    volumes:
-      - ~/Desktop/tipax/vllm/gpt-oss-20b:/models/gpt-oss-20b
-    ports:
-      - "8000:8000"
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities: [gpu]
-              device_ids: ["1"]
-    restart: unless-stopped
-    networks:
-      - app-network
+  # vllm-api:
+  #   image: vllm:v1.0
+  #   container_name: vllm-api
+  #   command: >
+  #     bash -c "python3 -m vllm.entrypoints.openai.api_server
+  #     --model /models/gpt-oss-20b
+  #     --port 8000
+  #     --dtype bfloat16
+  #     --tensor-parallel-size 1
+  #     --max-model-len 8192
+  #     --gpu-memory-utilization 0.75"
+  #   environment:
+  #     - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:64
+  #   volumes:
+  #     - ~/Desktop/tipax/vllm/gpt-oss-20b:/models/gpt-oss-20b
+  #   ports:
+  #     - "8000:8000"
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - capabilities: [gpu]
+  #             device_ids: ["1"]
+  #   restart: unless-stopped
+  #   networks:
+  #     - app-network
 
   # operaasr-general:
   #   image: faster_asr:v1.3
