@@ -128,7 +128,7 @@ services:
       - JWT_SECRET=${JWT_SECRET:-your-secret-key}
       - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-your-refresh-secret-key}
       - JWT_EXPIRES_IN=${JWT_EXPIRES_IN:-1d}
-      - TRANSCRIPTION_API_URL=http://opera-tipax:8003
+      - TRANSCRIPTION_API_URL=http://31.184.134.153:8083
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000,http://localhost:5173,http://31.184.134.173:8082,http://host.docker.internal:8082, http://host.docker.internal:8081, http://31.184.134.173:8081}
     volumes:
       - ./conversations:/app/conversations:ro
