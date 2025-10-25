@@ -61,7 +61,7 @@ if mc ls "$TEST_ALIAS/$MINIO_BUCKET" 2>&1; then
     
     # Count files
     echo "=== Counting Files ==="
-    local count=$(mc ls --recursive "$TEST_ALIAS/$MINIO_BUCKET/" 2>/dev/null | wc -l)
+    count=$(mc ls --recursive "$TEST_ALIAS/$MINIO_BUCKET/" 2>/dev/null | wc -l)
     echo "Total files: $count"
     echo ""
     
