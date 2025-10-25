@@ -159,6 +159,42 @@ export class SessionEventRepository {
         }
     }
 
+    // Find session event by filename within a time window
+    // This is used for deduplication to check if a call was already processed
+    async findByFilename(filename: string, hoursWindow: number = 24): Promise<SessionEventDocument | null> {
+        try {
+            const cutoffDate = new Date();
+            cutoffDate.setHours(cutoffDate.getHours() - hoursWindow);
+
+            const response = await elasticsearchClient.search({
+                index: this.indexName,
+                body: {
+                    query: {
+                        bool: {
+                            must: [
+                                { term: { "filename.keyword": filename } },
+                                { range: { date: { gte: cutoffDate.toISOString() } } }
+                            ]
+                        }
+                    }
+                },
+                size: 1
+            });
+
+            if (response.hits.hits.length > 0) {
+                const hit = response.hits.hits[0];
+                return {
+                    id: hit._id,
+                    ...hit._source as SessionEventDocument
+                };
+            }
+            return null;
+        } catch (error) {
+            logger.error({ err: error }, 'Error finding session event by filename');
+            throw error;
+        }
+    }
+
     // Update session event
     async update(id: string, updates: Partial<SessionEventDocument>): Promise<SessionEventDocument | null> {
         try {

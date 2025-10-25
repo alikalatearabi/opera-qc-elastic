@@ -72,6 +72,29 @@ export class SessionEventController {
                 });
             }
 
+            // DEDUPLICATION CHECK: Check if this filename was already processed
+            try {
+                const existingRecord = await sessionEventRepository.findByFilename(filename, 24);
+                if (existingRecord) {
+                    console.log(`[API_CALL_DUPLICATE] Duplicate filename detected: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
+                    return res.status(StatusCodes.OK).json({
+                        success: true,
+                        message: "Duplicate call detected and skipped",
+                        data: {
+                            type,
+                            filename,
+                            processed: false,
+                            reason: "duplicate",
+                            existingId: existingRecord.id
+                        },
+                        statusCode: StatusCodes.OK
+                    });
+                }
+            } catch (dedupError) {
+                // Log error but don't block processing if deduplication check fails
+                console.error(`[DEDUP_ERROR] Error checking for duplicates: ${dedupError}`);
+            }
+
             console.log(`[API_CALL_ACCEPTED] Processing incoming call, filename: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
 
             // Convert Persian date to Gregorian date
