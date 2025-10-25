@@ -8,7 +8,12 @@ echo "Time: $(date)"
 echo ""
 
 # Get app container
-APP_CONTAINER=$(docker ps --format "{{.Names}}" | grep -E "(app|opera|backend)" | head -1)
+APP_CONTAINER=$(docker ps --format "{{.Names}}" | grep -E "^app$" | head -1)
+
+# If 'app' not found, try other patterns
+if [ -z "$APP_CONTAINER" ]; then
+    APP_CONTAINER=$(docker ps --format "{{.Names}}" | grep -E "(backend|api)" | head -1)
+fi
 
 if [ -z "$APP_CONTAINER" ]; then
     echo "❌ No app container found"
