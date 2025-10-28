@@ -3,13 +3,14 @@ services:
     image: redis:7
     container_name: opera-qc-redis
     restart: always
-    ports:
-      - "6379:6379"
+    # ports:
+    #   - "6379:6379"
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
     networks:
       - app-network
+      
   swagger-ui:
     image: swaggerapi/swagger-ui
     container_name: swagger-ui
