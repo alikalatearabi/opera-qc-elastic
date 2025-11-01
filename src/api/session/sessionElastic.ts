@@ -2,7 +2,6 @@ import type { Request, RequestHandler, Response } from "express";
 import { ServiceResponse } from "@/common/models/serviceResponse";
 import { handleServiceResponse } from "@/common/utils/httpHandlers";
 import { StatusCodes } from "http-status-codes";
-import moment from 'moment-jalaali';
 import { Queue } from "bullmq";
 import { env } from "@/common/utils/envConfig";
 import { sessionEventRepository, type SearchFilters } from "@/common/utils/elasticsearchRepository";
@@ -10,6 +9,7 @@ import { addSequentialJob } from "@/queue/sequentialQueue";
 import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
+import axios from "axios";
 
 const sessionQueue = new Queue(env.BULL_QUEUE, {
     connection: {
@@ -22,9 +22,7 @@ export class SessionEventController {
 
     public createSessionEvent = async (req: Request, res: Response) => {
         try {
-            // Log every API call received
             console.log(`[API_CALL_RECEIVED] sessionReceived endpoint called at ${new Date().toISOString()}`);
-
             const {
                 type,
                 source_channel,
@@ -44,10 +42,7 @@ export class SessionEventController {
                 msg
             } = req.body;
 
-            // Log the call details
             console.log(`[API_CALL_DETAILS] Type: ${type}, Filename: ${filename}, Date: ${date}, Source: ${source_number}, Dest: ${dest_number}, UniqueID: ${uniqueid || 'N/A'}`);
-
-            // Validate required fields
             if (!type || !source_channel || !source_number || !queue || !dest_channel || !dest_number || !date || !duration || !filename) {
                 console.log(`[API_CALL_REJECTED] Missing required fields for filename: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
                 return res.status(StatusCodes.BAD_REQUEST).json({
@@ -58,7 +53,6 @@ export class SessionEventController {
                 });
             }
 
-            // Check if the call is incoming, otherwise skip processing
             if (type !== 'incoming') {
                 console.log(`[API_CALL_SKIPPED] Non-incoming call type: ${type}, filename: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
                 return res.status(StatusCodes.OK).json({
@@ -72,8 +66,27 @@ export class SessionEventController {
                 });
             }
 
-            // DEDUPLICATION CHECK: Check if this filename was already processed
             try {
+                console.log(`[CRM_CHECK] Checking CRM for mobile: ${source_number}`);
+                const crmApiUrl = `https://portal-crm.tipax.ir/api/crm/MobileComplaint.ashx?apikey=ONL086KKXZJ5W&mobile=${source_number}`;
+                const crmResponse = await axios.get(crmApiUrl);
+
+                if (crmResponse.data && crmResponse.data.StateID === 200 && crmResponse.data.Result === "true") {
+                    console.log(`[API_CALL_BYPASSED] Mobile ${dest_number} found in CRM, bypassing processing for filename: ${filename}`);
+                    return res.status(StatusCodes.OK).json({
+                        success: true,
+                        message: "Mobile number found in CRM complaint system. Call bypassed.",
+                        data: {
+                            type,
+                            source_number,
+                            processed: false,
+                            reason: "crm_complaint_found",
+                            crmId: crmResponse.data.ID
+                        },
+                        statusCode: StatusCodes.OK
+                    });
+                }
+
                 const existingRecord = await sessionEventRepository.findByFilename(filename, 24);
                 if (existingRecord) {
                     console.log(`[API_CALL_DUPLICATE] Duplicate filename detected: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
@@ -91,26 +104,20 @@ export class SessionEventController {
                     });
                 }
             } catch (dedupError) {
-                // Log error but don't block processing if deduplication check fails
                 console.error(`[DEDUP_ERROR] Error checking for duplicates: ${dedupError}`);
             }
 
             console.log(`[API_CALL_ACCEPTED] Processing incoming call, filename: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
-
-            // Convert Persian date to Gregorian date
-            // Handle different input formats: "YYYY-MM-DD HH:mm:ss" or ISO string
             const moment = require('moment-jalaali');
             let gregorianDate: Date;
 
             if (date.includes('T') && date.includes('Z')) {
-                // ISO format like "1404-07-22T10:00:00.000Z" - treat as Persian date
-                const dateOnly = date.split('T')[0]; // Extract YYYY-MM-DD part
+                const dateOnly = date.split('T')[0];
                 const [year, month, day] = dateOnly.split('-').map(Number);
                 const persianMoment = moment(`${year}-${month}-${day}`, 'jYYYY-jM-jD');
                 gregorianDate = persianMoment.toDate();
                 console.log(`Converted Persian ISO date ${date} to Gregorian: ${gregorianDate.toISOString()}`);
             } else {
-                // Original format: Persian YYYY-MM-DD HH:mm:ss
                 const [persianDatePart, timePart] = date.split(' ');
                 const [year, month, day] = persianDatePart.split('-').map(Number);
                 const persianMoment = moment(`${year}-${month}-${day} ${timePart}`, 'jYYYY-jM-jD HH:mm:ss');
@@ -118,7 +125,6 @@ export class SessionEventController {
                 console.log(`Converted Persian date ${date} to Gregorian: ${gregorianDate.toISOString()}`);
             }
 
-            // Add job to sequential queue instead of the regular queue
             const job = await addSequentialJob('process-session', {
                 type,
                 sourceChannel: source_channel,
@@ -130,7 +136,6 @@ export class SessionEventController {
                 duration,
                 filename,
                 uniqueid,
-                // Add these fields from the request if provided
                 level: level || 30,
                 time: time || new Date().getTime(),
                 pid: pid || process.pid,

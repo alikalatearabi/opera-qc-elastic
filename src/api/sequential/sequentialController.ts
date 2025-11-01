@@ -8,7 +8,6 @@ export class SequentialJobController {
         try {
             const { type, data } = req.body;
 
-            // Validate required fields
             if (!type || !data) {
                 return res.status(StatusCodes.BAD_REQUEST).json({
                     success: false,
@@ -18,9 +17,7 @@ export class SequentialJobController {
                 });
             }
 
-            // Add job to sequential queue
             const job = await addSequentialJob(type, data);
-
             return res.status(StatusCodes.OK).json({
                 success: true,
                 message: "Sequential job added successfully",
