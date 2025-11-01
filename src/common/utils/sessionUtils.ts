@@ -154,3 +154,33 @@ export const sendToAnalysisAPI = async (transcriptionData: any) => {
         return null;
     }
 };
+
+export interface CRMCheckResult {
+    isComplaint: boolean;
+    crmId?: number;
+}
+
+export const checkCRMComplaint = async (mobile: string): Promise<CRMCheckResult | null> => {
+    try {
+        console.log(`[CRM_CHECK] Checking CRM for mobile: ${mobile}`);
+        const crmApiUrl = `https://portal-crm.tipax.ir/api/crm/MobileComplaint.ashx?apikey=ONL086KKXZJ5W&mobile=${mobile}`;
+        const crmResponse = await axios.get(crmApiUrl);
+
+        // Check if StateID is 200 and Result is "true"
+        if (crmResponse.data && crmResponse.data.StateID === 200 && crmResponse.data.Result === "true") {
+            console.log(`[CRM_RESPONSE] Mobile ${mobile} found in CRM complaint system, ID: ${crmResponse.data.ID}`);
+            return {
+                isComplaint: true,
+                crmId: crmResponse.data.ID
+            };
+        }
+
+        console.log(`[CRM_RESPONSE] Mobile ${mobile} not found in CRM complaint system`);
+        return {
+            isComplaint: false
+        };
+    } catch (error: any) {
+        console.error(`[CRM_ERROR] Error checking CRM for ${mobile}:`, error.message);
+        return null;
+    }
+};

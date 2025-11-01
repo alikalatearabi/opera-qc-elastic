@@ -6,10 +6,11 @@ import { Queue } from "bullmq";
 import { env } from "@/common/utils/envConfig";
 import { sessionEventRepository, type SearchFilters } from "@/common/utils/elasticsearchRepository";
 import { addSequentialJob } from "@/queue/sequentialQueue";
+import { checkCRMComplaint } from "@/common/utils/sessionUtils";
+import { convertPersianToGregorian } from "@/common/utils/dateUtils";
 import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
-import axios from "axios";
 
 const sessionQueue = new Queue(env.BULL_QUEUE, {
     connection: {
@@ -66,27 +67,24 @@ export class SessionEventController {
                 });
             }
 
+            const crmCheck = await checkCRMComplaint(source_number);
+            if (crmCheck?.isComplaint) {
+                console.log(`[API_CALL_BYPASSED] Mobile ${source_number} found in CRM, bypassing processing for filename: ${filename}`);
+                return res.status(StatusCodes.OK).json({
+                    success: true,
+                    message: "Mobile number found in CRM complaint system. Call bypassed.",
+                    data: {
+                        type,
+                        source_number,
+                        processed: false,
+                        reason: "crm_complaint_found",
+                        crmId: crmCheck.crmId
+                    },
+                    statusCode: StatusCodes.OK
+                });
+            }
+
             try {
-                console.log(`[CRM_CHECK] Checking CRM for mobile: ${source_number}`);
-                const crmApiUrl = `https://portal-crm.tipax.ir/api/crm/MobileComplaint.ashx?apikey=ONL086KKXZJ5W&mobile=${source_number}`;
-                const crmResponse = await axios.get(crmApiUrl);
-
-                if (crmResponse.data && crmResponse.data.StateID === 200 && crmResponse.data.Result === "true") {
-                    console.log(`[API_CALL_BYPASSED] Mobile ${dest_number} found in CRM, bypassing processing for filename: ${filename}`);
-                    return res.status(StatusCodes.OK).json({
-                        success: true,
-                        message: "Mobile number found in CRM complaint system. Call bypassed.",
-                        data: {
-                            type,
-                            source_number,
-                            processed: false,
-                            reason: "crm_complaint_found",
-                            crmId: crmResponse.data.ID
-                        },
-                        statusCode: StatusCodes.OK
-                    });
-                }
-
                 const existingRecord = await sessionEventRepository.findByFilename(filename, 24);
                 if (existingRecord) {
                     console.log(`[API_CALL_DUPLICATE] Duplicate filename detected: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
@@ -108,23 +106,7 @@ export class SessionEventController {
             }
 
             console.log(`[API_CALL_ACCEPTED] Processing incoming call, filename: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
-            const moment = require('moment-jalaali');
-            let gregorianDate: Date;
-
-            if (date.includes('T') && date.includes('Z')) {
-                const dateOnly = date.split('T')[0];
-                const [year, month, day] = dateOnly.split('-').map(Number);
-                const persianMoment = moment(`${year}-${month}-${day}`, 'jYYYY-jM-jD');
-                gregorianDate = persianMoment.toDate();
-                console.log(`Converted Persian ISO date ${date} to Gregorian: ${gregorianDate.toISOString()}`);
-            } else {
-                const [persianDatePart, timePart] = date.split(' ');
-                const [year, month, day] = persianDatePart.split('-').map(Number);
-                const persianMoment = moment(`${year}-${month}-${day} ${timePart}`, 'jYYYY-jM-jD HH:mm:ss');
-                gregorianDate = persianMoment.toDate();
-                console.log(`Converted Persian date ${date} to Gregorian: ${gregorianDate.toISOString()}`);
-            }
-
+            const gregorianDate = convertPersianToGregorian(date);
             const job = await addSequentialJob('process-session', {
                 type,
                 sourceChannel: source_channel,
