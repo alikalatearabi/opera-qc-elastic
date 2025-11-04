@@ -1,0 +1,54 @@
+{
+    "incoming_call_example": {
+        "type": "incoming",
+        "source_channel": "SIP/305",
+        "source_number": "09123456789",
+        "queue": "support",
+        "dest_channel": "SIP/cisco",
+        "dest_number": "02112345678",
+        "date": "1404-07-22 14:30:00",
+        "duration": "00:02:15",
+        "filename": "14040722-143000-09123456789-204",
+        "uniqueid": "1724328600.204",
+        "level": 30,
+        "time": 1724328600,
+        "pid": 12345,
+        "hostname": "call-server-01",
+        "name": "session",
+        "msg": "New call session received"
+    },
+    "outgoing_call_example": {
+        "type": "outgoing",
+        "source_channel": "SIP/305",
+        "source_number": "09123456789",
+        "queue": "sales",
+        "dest_channel": "SIP/cisco",
+        "dest_number": "02187654321",
+        "date": "1404-07-22 15:45:00",
+        "duration": "00:01:30",
+        "filename": "14040722-154500-09123456789-205",
+        "uniqueid": "1724331900.205"
+    },
+    "minimal_required_fields": {
+        "type": "incoming",
+        "source_channel": "SIP/305",
+        "source_number": "09120000000",
+        "queue": "support",
+        "dest_channel": "SIP/cisco",
+        "dest_number": "02112345678",
+        "date": "1404-07-22 14:30:00",
+        "duration": "00:02:15",
+        "filename": "14040722-143000-09120000000-204"
+    },
+    "persian_date_iso_format": {
+        "type": "incoming",
+        "source_channel": "SIP/305",
+        "source_number": "09123456789",
+        "queue": "support",
+        "dest_channel": "SIP/cisco",
+        "dest_number": "02112345678",
+        "date": "1404-07-22T10:00:00.000Z",
+        "duration": "00:02:15",
+        "filename": "14040722-100000-09123456789-204"
+    }
+}

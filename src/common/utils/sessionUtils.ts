@@ -1,10 +1,12 @@
 import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import path from "node:path";
 import fs from "node:fs";
+import os from "node:os";
 import { downloadAndSaveAudio } from "@/common/utils/downloadFileStream";
 import FormData from "form-data";
 import axios from "axios";
 import { env } from "@/common/utils/envConfig";
+import { sessionEventRepository } from "@/common/utils/elasticsearchRepository";
 
 // Fix MinIO endpoint configuration - add protocol if missing
 const getMinioEndpoint = () => {
@@ -183,4 +185,68 @@ export const checkCRMComplaint = async (mobile: string): Promise<CRMCheckResult 
         console.error(`[CRM_ERROR] Error checking CRM for ${mobile}:`, error.message);
         return null;
     }
+};
+
+export interface DuplicateCheckResult {
+    isDuplicate: boolean;
+    existingId?: string;
+}
+
+export const checkForDuplicate = async (filename: string, hoursToCheck: number = 24): Promise<DuplicateCheckResult | null> => {
+    try {
+        const existingRecord = await sessionEventRepository.findByFilename(filename, hoursToCheck);
+        if (existingRecord) {
+            console.log(`[DUPLICATE_CHECK] Duplicate filename detected: ${filename}`);
+            return {
+                isDuplicate: true,
+                existingId: existingRecord.id
+            };
+        }
+        return {
+            isDuplicate: false
+        };
+    } catch (error: any) {
+        console.error(`[DUPLICATE_CHECK_ERROR] Error checking for duplicates: ${error.message}`);
+        return null; // Return null on error to indicate check failed
+    }
+};
+
+export interface SessionJobData {
+    type: string;
+    sourceChannel: string;
+    sourceNumber: string;
+    queue: string;
+    destChannel: string;
+    destNumber: string;
+    date: Date;
+    duration: string;
+    filename: string;
+    uniqueid?: string;
+    level?: number;
+    time?: number;
+    pid?: number;
+    hostname?: string;
+    name?: string;
+    msg?: string;
+}
+
+export const buildSessionJobData = (reqBody: any, gregorianDate: Date): SessionJobData => {
+    return {
+        type: reqBody.type,
+        sourceChannel: reqBody.source_channel,
+        sourceNumber: reqBody.source_number,
+        queue: reqBody.queue,
+        destChannel: reqBody.dest_channel,
+        destNumber: reqBody.dest_number,
+        date: gregorianDate,
+        duration: reqBody.duration,
+        filename: reqBody.filename,
+        uniqueid: reqBody.uniqueid,
+        level: reqBody.level || 30,
+        time: reqBody.time || new Date().getTime(),
+        pid: reqBody.pid || process.pid,
+        hostname: reqBody.hostname || os.hostname(),
+        name: reqBody.name || "session",
+        msg: reqBody.msg || "New call session"
+    };
 };

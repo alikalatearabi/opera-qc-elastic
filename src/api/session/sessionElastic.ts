@@ -6,9 +6,9 @@ import { Queue } from "bullmq";
 import { env } from "@/common/utils/envConfig";
 import { sessionEventRepository, type SearchFilters } from "@/common/utils/elasticsearchRepository";
 import { addSequentialJob } from "@/queue/sequentialQueue";
-import { checkCRMComplaint } from "@/common/utils/sessionUtils";
+import { checkCRMComplaint, checkForDuplicate, buildSessionJobData } from "@/common/utils/sessionUtils";
 import { convertPersianToGregorian } from "@/common/utils/dateUtils";
-import os from "node:os";
+import { validateSessionEventInput } from "@/common/utils/commonValidation";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -24,28 +24,10 @@ export class SessionEventController {
     public createSessionEvent = async (req: Request, res: Response) => {
         try {
             console.log(`[API_CALL_RECEIVED] sessionReceived endpoint called at ${new Date().toISOString()}`);
-            const {
-                type,
-                source_channel,
-                source_number,
-                queue,
-                dest_channel,
-                dest_number,
-                date,
-                duration,
-                filename,
-                uniqueid,
-                level,
-                time,
-                pid,
-                hostname,
-                name,
-                msg
-            } = req.body;
 
-            console.log(`[API_CALL_DETAILS] Type: ${type}, Filename: ${filename}, Date: ${date}, Source: ${source_number}, Dest: ${dest_number}, UniqueID: ${uniqueid || 'N/A'}`);
-            if (!type || !source_channel || !source_number || !queue || !dest_channel || !dest_number || !date || !duration || !filename) {
-                console.log(`[API_CALL_REJECTED] Missing required fields for filename: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
+            const validation = validateSessionEventInput(req.body);
+            if (!validation.isValid) {
+                console.log(`[API_CALL_REJECTED] Missing required fields for filename: ${req.body.filename}, uniqueid: ${req.body.uniqueid || 'N/A'}`);
                 return res.status(StatusCodes.BAD_REQUEST).json({
                     success: false,
                     message: "Missing required fields",
@@ -53,6 +35,9 @@ export class SessionEventController {
                     statusCode: StatusCodes.BAD_REQUEST
                 });
             }
+
+            const { type, source_number, filename, uniqueid, date } = validation.data!;
+            console.log(`[API_CALL_DETAILS] Type: ${type}, Filename: ${filename}, Source: ${source_number}, UniqueID: ${uniqueid || 'N/A'}`);
 
             if (type !== 'incoming') {
                 console.log(`[API_CALL_SKIPPED] Non-incoming call type: ${type}, filename: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
@@ -67,64 +52,44 @@ export class SessionEventController {
                 });
             }
 
-            const crmCheck = await checkCRMComplaint(source_number);
-            if (crmCheck?.isComplaint) {
-                console.log(`[API_CALL_BYPASSED] Mobile ${source_number} found in CRM, bypassing processing for filename: ${filename}`);
+            // const crmCheck = await checkCRMComplaint(source_number);
+            // if (crmCheck?.isComplaint) {
+            //     console.log(`[API_CALL_BYPASSED] Mobile ${source_number} found in CRM, bypassing processing for filename: ${filename}`);
+            //     return res.status(StatusCodes.OK).json({
+            //         success: true,
+            //         message: "Mobile number found in CRM complaint system. Call bypassed.",
+            //         data: {
+            //             type,
+            //             source_number,
+            //             processed: false,
+            //             reason: "crm_complaint_found",
+            //             crmId: crmCheck.crmId
+            //         },
+            //         statusCode: StatusCodes.OK
+            //     });
+            // }
+
+            const duplicateCheck = await checkForDuplicate(filename, 24);
+            if (duplicateCheck?.isDuplicate) {
+                console.log(`[API_CALL_DUPLICATE] Duplicate filename detected: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
                 return res.status(StatusCodes.OK).json({
                     success: true,
-                    message: "Mobile number found in CRM complaint system. Call bypassed.",
+                    message: "Duplicate call detected and skipped",
                     data: {
                         type,
-                        source_number,
+                        filename,
                         processed: false,
-                        reason: "crm_complaint_found",
-                        crmId: crmCheck.crmId
+                        reason: "duplicate",
+                        existingId: duplicateCheck.existingId
                     },
                     statusCode: StatusCodes.OK
                 });
             }
 
-            try {
-                const existingRecord = await sessionEventRepository.findByFilename(filename, 24);
-                if (existingRecord) {
-                    console.log(`[API_CALL_DUPLICATE] Duplicate filename detected: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
-                    return res.status(StatusCodes.OK).json({
-                        success: true,
-                        message: "Duplicate call detected and skipped",
-                        data: {
-                            type,
-                            filename,
-                            processed: false,
-                            reason: "duplicate",
-                            existingId: existingRecord.id
-                        },
-                        statusCode: StatusCodes.OK
-                    });
-                }
-            } catch (dedupError) {
-                console.error(`[DEDUP_ERROR] Error checking for duplicates: ${dedupError}`);
-            }
-
             console.log(`[API_CALL_ACCEPTED] Processing incoming call, filename: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
             const gregorianDate = convertPersianToGregorian(date);
-            const job = await addSequentialJob('process-session', {
-                type,
-                sourceChannel: source_channel,
-                sourceNumber: source_number,
-                queue,
-                destChannel: dest_channel,
-                destNumber: dest_number,
-                date: gregorianDate,
-                duration,
-                filename,
-                uniqueid,
-                level: level || 30,
-                time: time || new Date().getTime(),
-                pid: pid || process.pid,
-                hostname: hostname || os.hostname(),
-                name: name || "session",
-                msg: msg || "New call session"
-            });
+            const jobData = buildSessionJobData(req.body, gregorianDate);
+            const job = await addSequentialJob('process-session', jobData);
 
             console.log(`[API_CALL_QUEUED] Job queued successfully with ID: ${job.id}, filename: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
 
