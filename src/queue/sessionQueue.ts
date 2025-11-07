@@ -1,12 +1,9 @@
 import { Queue, Worker } from 'bullmq';
 import { sessionEventRepository } from '@/common/utils/elasticsearchRepository';
-import { sendAudioRequests } from '@/common/utils/sessionUtils';
-import { uploadToMinIO } from '@/common/utils/sessionUtils';
-import { TranscriptionResponseSchema, AnalysisResponseSchema } from '@/api/session/sessionModel';
 import path from 'node:path';
 import { env } from '@/common/utils/envConfig';
 import fs from 'fs';
-import { S3Client, PutObjectCommand, ListBucketsCommand, CreateBucketCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, CreateBucketCommand, HeadBucketCommand } from '@aws-sdk/client-s3';
 import axios from 'axios';
 import os from 'os';
 

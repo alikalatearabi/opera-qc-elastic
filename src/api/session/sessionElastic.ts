@@ -84,22 +84,22 @@ export class SessionEventController {
                 });
             }
 
-            // const crmCheck = await checkCRMComplaint(source_number);
-            // if (crmCheck?.isComplaint) {
-            //     console.log(`[API_CALL_BYPASSED] Mobile ${source_number} found in CRM, bypassing processing for filename: ${filename}`);
-            //     return res.status(StatusCodes.OK).json({
-            //         success: true,
-            //         message: "Mobile number found in CRM complaint system. Call bypassed.",
-            //         data: {
-            //             type,
-            //             source_number,
-            //             processed: false,
-            //             reason: "crm_complaint_found",
-            //             crmId: crmCheck.crmId
-            //         },
-            //         statusCode: StatusCodes.OK
-            //     });
-            // }
+            const crmCheck = await checkCRMComplaint(source_number);
+            if (crmCheck?.isComplaint) {
+                console.log(`[API_CALL_BYPASSED] Mobile ${source_number} found in CRM, bypassing processing for filename: ${filename}`);
+                return res.status(StatusCodes.OK).json({
+                    success: true,
+                    message: "Mobile number found in CRM complaint system. Call bypassed.",
+                    data: {
+                        type,
+                        source_number,
+                        processed: false,
+                        reason: "crm_complaint_found",
+                        crmId: crmCheck.crmId
+                    },
+                    statusCode: StatusCodes.OK
+                });
+            }
 
             const duplicateCheck = await checkForDuplicate(filename, 24, uniqueid);
             if (duplicateCheck?.isDuplicate) {

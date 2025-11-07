@@ -92,7 +92,6 @@ export class SequentialJobController {
 
     public getAllJobs = async (req: Request, res: Response) => {
         try {
-            // Get jobs in different states
             const waitingJobs = await sequentialQueue.getWaiting();
             const activeJobs = await sequentialQueue.getActive();
             const completedJobs = await sequentialQueue.getCompleted();
