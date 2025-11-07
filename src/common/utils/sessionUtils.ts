@@ -192,8 +192,19 @@ export interface DuplicateCheckResult {
     existingId?: string;
 }
 
-export const checkForDuplicate = async (filename: string, hoursToCheck: number = 24): Promise<DuplicateCheckResult | null> => {
+export const checkForDuplicate = async (filename: string, hoursToCheck: number = 24, uniqueid?: string): Promise<DuplicateCheckResult | null> => {
     try {
+        if (uniqueid) {
+            const existingByUniqueId = await sessionEventRepository.findByUniqueId(uniqueid);
+            if (existingByUniqueId) {
+                console.log(`[DUPLICATE_CHECK] Duplicate uniqueid detected: ${uniqueid}`);
+                return {
+                    isDuplicate: true,
+                    existingId: existingByUniqueId.id
+                };
+            }
+        }
+
         const existingRecord = await sessionEventRepository.findByFilename(filename, hoursToCheck);
         if (existingRecord) {
             console.log(`[DUPLICATE_CHECK] Duplicate filename detected: ${filename}`);

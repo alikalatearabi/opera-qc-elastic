@@ -119,11 +119,18 @@ export class SessionEventRepository {
                 searchText: this.buildSearchText(sessionEvent)
             };
 
-            const response = await elasticsearchClient.index({
+            const indexParams: Record<string, unknown> = {
                 index: this.indexName,
                 body: document,
                 refresh: 'wait_for' // Ensure document is immediately searchable
-            });
+            };
+
+            if (sessionEvent.uniqueid) {
+                indexParams.id = sessionEvent.uniqueid;
+                indexParams.op_type = 'create';
+            }
+
+            const response = await elasticsearchClient.index(indexParams as any);
 
             return {
                 ...document,
@@ -191,6 +198,53 @@ export class SessionEventRepository {
             return null;
         } catch (error) {
             logger.error({ err: error }, 'Error finding session event by filename');
+            throw error;
+        }
+    }
+
+    async findByUniqueId(uniqueid: string): Promise<SessionEventDocument | null> {
+        try {
+            const response = await elasticsearchClient.get({
+                index: this.indexName,
+                id: uniqueid
+            });
+
+            if (response.found) {
+                return {
+                    id: response._id,
+                    ...response._source as SessionEventDocument
+                };
+            }
+            return null;
+        } catch (error: any) {
+            if (error.statusCode === 404) {
+                try {
+                    const searchResponse = await elasticsearchClient.search({
+                        index: this.indexName,
+                        body: {
+                            query: {
+                                term: {
+                                    "uniqueid.keyword": uniqueid
+                                }
+                            }
+                        },
+                        size: 1
+                    });
+
+                    if (searchResponse.hits.hits.length > 0) {
+                        const hit = searchResponse.hits.hits[0];
+                        return {
+                            id: hit._id,
+                            ...hit._source as SessionEventDocument
+                        };
+                    }
+                    return null;
+                } catch (searchError) {
+                    logger.error({ err: searchError }, 'Error searching session event by uniqueid');
+                    throw searchError;
+                }
+            }
+            logger.error({ err: error }, 'Error finding session event by uniqueid');
             throw error;
         }
     }

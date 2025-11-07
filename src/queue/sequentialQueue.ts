@@ -177,6 +177,19 @@ async function processSessionJob(jobData: any) {
             };
         }
 
+        if (uniqueid) {
+            const existingEvent = await sessionEventRepository.findByUniqueId(uniqueid);
+            if (existingEvent) {
+                console.log(`[SESSION_EVENT_DUPLICATE] UniqueID ${uniqueid} already processed, skipping job.`);
+                return {
+                    success: true,
+                    message: "Duplicate session event skipped",
+                    processed: false,
+                    reason: "duplicate_uniqueid"
+                };
+            }
+        }
+
         // Handle cases where fields might be undefined
         const sourceChannelValue = sourceChannel || "";
         const sourceNumberValue = sourceNumber || "";
@@ -264,25 +277,43 @@ async function processSessionJob(jobData: any) {
         const convertedDate = moment(date, 'YYYY-MM-DD HH:mm:ss').toDate();
         console.log(`Converting Persian date "${date}" to: ${convertedDate.toISOString()}`);
 
-        const sessionEvent = await sessionEventRepository.create({
-            level: 30, // Default log level (info)
-            time: new Date().toISOString(),
-            pid: process.pid,
-            hostname: os.hostname(),
-            name: "SESSION_EVENT",
-            msg: `Call recorded: ${filename}`,
-            type,
-            sourceChannel: sourceChannelValue,
-            sourceNumber: sourceNumberValue,
-            queue: queueValue,
-            destChannel: destChannelValue,
-            destNumber: destNumberValue,
-            date: convertedDate,
-            duration,
-            filename,
-            uniqueid, // Add uniqueid field
-            keyWords: [] // Initialize with empty array
-        });
+        let sessionEvent;
+        try {
+            sessionEvent = await sessionEventRepository.create({
+                level: 30, // Default log level (info)
+                time: new Date().toISOString(),
+                pid: process.pid,
+                hostname: os.hostname(),
+                name: "SESSION_EVENT",
+                msg: `Call recorded: ${filename}`,
+                type,
+                sourceChannel: sourceChannelValue,
+                sourceNumber: sourceNumberValue,
+                queue: queueValue,
+                destChannel: destChannelValue,
+                destNumber: destNumberValue,
+                date: convertedDate,
+                duration,
+                filename,
+                uniqueid, // Add uniqueid field
+                keyWords: [] // Initialize with empty array
+            });
+        } catch (error: any) {
+            const statusCode = error?.statusCode || error?.meta?.statusCode;
+            const errorType = error?.meta?.body?.error?.type;
+
+            if (statusCode === 409 || errorType === 'version_conflict_engine_exception') {
+                console.log(`[SESSION_EVENT_DUPLICATE] Elasticsearch reported duplicate uniqueid ${uniqueid}. Skipping.`);
+                return {
+                    success: true,
+                    message: "Duplicate session event skipped",
+                    processed: false,
+                    reason: "duplicate_uniqueid"
+                };
+            }
+
+            throw error;
+        }
 
         console.log("Created session event:", sessionEvent);
 

@@ -9,6 +9,7 @@ import { addSequentialJob } from "@/queue/sequentialQueue";
 import { checkCRMComplaint, checkForDuplicate, buildSessionJobData } from "@/common/utils/sessionUtils";
 import { convertPersianToGregorian } from "@/common/utils/dateUtils";
 import { validateSessionEventInput } from "@/common/utils/commonValidation";
+import { redisClient } from "@/common/utils/redisClient";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -22,6 +23,8 @@ const sessionQueue = new Queue(env.BULL_QUEUE, {
 export class SessionEventController {
 
     public createSessionEvent = async (req: Request, res: Response) => {
+        let redisKey: string | null = null;
+        let redisLockAcquired = false;
         try {
             console.log(`[API_CALL_RECEIVED] sessionReceived endpoint called at ${new Date().toISOString()}`);
 
@@ -38,6 +41,35 @@ export class SessionEventController {
 
             const { type, source_number, filename, uniqueid, date } = validation.data!;
             console.log(`[API_CALL_DETAILS] Type: ${type}, Filename: ${filename}, Source: ${source_number}, UniqueID: ${uniqueid || 'N/A'}`);
+
+            if (uniqueid) {
+                redisKey = `session:unique:${uniqueid}`;
+                const lock = await redisClient.set(
+                    redisKey,
+                    JSON.stringify({ filename, receivedAt: Date.now() }),
+                    "NX",
+                    "EX",
+                    172800 // 2 days
+                );
+
+                if (lock !== "OK") {
+                    console.log(`[API_CALL_DUPLICATE] Duplicate uniqueid detected: ${uniqueid}, filename: ${filename}`);
+                    return res.status(StatusCodes.OK).json({
+                        success: true,
+                        message: "Duplicate call detected and skipped",
+                        data: {
+                            type,
+                            filename,
+                            uniqueid,
+                            processed: false,
+                            reason: "duplicate_uniqueid"
+                        },
+                        statusCode: StatusCodes.OK
+                    });
+                }
+
+                redisLockAcquired = true;
+            }
 
             if (type !== 'incoming') {
                 console.log(`[API_CALL_SKIPPED] Non-incoming call type: ${type}, filename: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
@@ -69,7 +101,7 @@ export class SessionEventController {
             //     });
             // }
 
-            const duplicateCheck = await checkForDuplicate(filename, 24);
+            const duplicateCheck = await checkForDuplicate(filename, 24, uniqueid);
             if (duplicateCheck?.isDuplicate) {
                 console.log(`[API_CALL_DUPLICATE] Duplicate filename detected: ${filename}, uniqueid: ${uniqueid || 'N/A'}`);
                 return res.status(StatusCodes.OK).json({
@@ -106,6 +138,13 @@ export class SessionEventController {
         } catch (error) {
             console.log(`[API_CALL_ERROR] Error creating session event: ${error}`);
             console.error('Error creating session event:', error);
+            if (redisKey && redisLockAcquired) {
+                try {
+                    await redisClient.del(redisKey);
+                } catch (redisError) {
+                    console.error('Error releasing Redis lock:', redisError);
+                }
+            }
             return res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
                 success: false,
                 message: "Error processing session event",
