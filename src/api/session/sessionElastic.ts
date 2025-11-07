@@ -47,9 +47,9 @@ export class SessionEventController {
                 const lock = await redisClient.set(
                     redisKey,
                     JSON.stringify({ filename, receivedAt: Date.now() }),
-                    "NX",
                     "EX",
-                    172800 // 2 days
+                    172800, // 2 days
+                    "NX"
                 );
 
                 if (lock !== "OK") {
