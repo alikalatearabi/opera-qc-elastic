@@ -7,7 +7,8 @@ import path from 'node:path';
 import fs from 'fs';
 import os from 'os';
 import moment from 'moment-jalaali';
-import { uploadToMinIO } from '@/common/utils/sessionUtils';
+import { uploadToMinIO, checkCRMComplaint } from '@/common/utils/sessionUtils';
+import { redisClient } from '@/common/utils/redisClient';
 import { addTranscriptionJob } from './transcriptionQueue';
 
 // Fix MinIO endpoint configuration - add protocol if missing
@@ -186,6 +187,27 @@ async function processSessionJob(jobData: any) {
                     message: "Duplicate session event skipped",
                     processed: false,
                     reason: "duplicate_uniqueid"
+                };
+            }
+        }
+
+        if (sourceNumberValue) {
+            const crmCheck = await checkCRMComplaint(sourceNumberValue);
+            if (crmCheck?.isComplaint) {
+                console.log(`[SESSION_EVENT_BYPASSED] Mobile ${sourceNumberValue} found in CRM, bypassing processing for filename: ${filename}`);
+                if (uniqueid) {
+                    try {
+                        await redisClient.del(`session:unique:${uniqueid}`);
+                    } catch (redisError) {
+                        console.error(`[CRM_REDIS_RELEASE_ERROR] Failed to release Redis lock for uniqueid ${uniqueid}:`, redisError);
+                    }
+                }
+                return {
+                    success: true,
+                    message: "Mobile number found in CRM complaint system. Call bypassed.",
+                    processed: false,
+                    reason: "crm_complaint_found",
+                    crmId: crmCheck.crmId
                 };
             }
         }
