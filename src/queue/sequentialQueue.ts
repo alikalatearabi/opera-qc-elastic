@@ -191,6 +191,13 @@ async function processSessionJob(jobData: any) {
             }
         }
 
+        // Handle cases where fields might be undefined
+        const sourceChannelValue = sourceChannel || "";
+        const sourceNumberValue = sourceNumber || "";
+        const destChannelValue = destChannel || "";
+        const destNumberValue = destNumber || "";
+        const queueValue = queue || "";
+
         if (sourceNumberValue) {
             const crmCheck = await checkCRMComplaint(sourceNumberValue);
             if (crmCheck?.isComplaint) {
@@ -211,13 +218,6 @@ async function processSessionJob(jobData: any) {
                 };
             }
         }
-
-        // Handle cases where fields might be undefined
-        const sourceChannelValue = sourceChannel || "";
-        const sourceNumberValue = sourceNumber || "";
-        const destChannelValue = destChannel || "";
-        const destNumberValue = destNumber || "";
-        const queueValue = queue || "";
 
         // Basic auth credentials for file server
         const auth = {
